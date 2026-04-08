@@ -190,6 +190,26 @@ QWEN_URL=http://192.168.1.244:8291 data_label_factory status
 
 ---
 
+## Optional GPU path
+
+If a user has more than ~10k images and wants the run to finish in minutes
+instead of an hour, point them at the RunPod path:
+
+```bash
+pip install -e ".[runpod]"
+export RUNPOD_API_KEY=rpa_xxxxxxxxxx
+python3 -m data_label_factory.runpod pipeline \
+    --project projects/<theirs>.yaml --gpu L40S \
+    --publish-to <user>/<dataset>
+```
+
+The runpod subpackage is opt-in — `data_label_factory` itself never imports
+it, so users without `RUNPOD_API_KEY` are not affected. Full docs at
+`data_label_factory/runpod/README.md`. **Always smoke-test with `--limit 5`
+locally before kicking off a paid pod run.**
+
+---
+
 ## Reference dataset
 
 This pipeline produced [`waltgrace/fiber-optic-drones`](https://huggingface.co/datasets/waltgrace/fiber-optic-drones)
