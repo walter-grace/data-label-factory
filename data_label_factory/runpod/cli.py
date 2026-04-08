@@ -379,9 +379,16 @@ def cmd_build(args):
     dockerfile = here / "Dockerfile"
     if not dockerfile.exists():
         raise SystemExit(f"Dockerfile not found at {dockerfile}")
-    print(f"building image {args.tag} from {dockerfile}…")
+    # The build context MUST be the repo root because the Dockerfile COPYs
+    # files from outside the runpod/ folder (pyproject.toml, the package dir, etc.)
+    repo_root = here.parent.parent  # data_label_factory/runpod → repo root
+    if not (repo_root / "pyproject.toml").exists():
+        raise SystemExit(f"expected pyproject.toml at {repo_root}; build context resolution failed")
+    print(f"building image {args.tag}")
+    print(f"  context:    {repo_root}")
+    print(f"  dockerfile: {dockerfile}")
     subprocess.run(
-        ["docker", "build", "-t", args.tag, "-f", str(dockerfile), str(here)],
+        ["docker", "build", "-t", args.tag, "-f", str(dockerfile), str(repo_root)],
         check=True,
     )
     if args.push:
