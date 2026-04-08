@@ -1,0 +1,133 @@
+# =====================================================================
+# drones.yaml — example project config for the data labeling factory
+# =====================================================================
+#
+# This is the canonical example. It captures EXACTLY what we built tonight
+# for the fiber-optic drone detector. To make a new project (e.g. stop signs,
+# fire hydrants, manufacturing defects), copy this file, change `target_object`,
+# adjust the queries, and run:
+#
+#     data_label_factory pipeline --project projects/drones.yaml
+#
+# Generic shape:
+#   project_name      → human-readable identifier (used in experiment dir names)
+#   target_object     → the thing you're trying to detect (templated into prompts)
+#   data_root         → where local images go
+#   r2:               → cloud storage config (bucket, prefix per stage)
+#   buckets:          → gather plan (5 buckets is conventional but any structure works)
+#   falcon_queries:   → list of queries to run Falcon Perception with
+#   prompts:          → optional overrides for templated prompts
+#   backends:         → which model backend to use per stage
+# =====================================================================
+
+project_name: drones
+target_object: "fiber optic drone"
+description: |
+  Auto-labeling pipeline for fiber-optic drone detection. Falcon Perception
+  grounds bboxes for any drone, spool, or cable; Qwen2.5-VL verifies each.
+
+# Where local images live (gitignored)
+data_root: ~/drone-falcon-data/v2
+
+# Cloudflare R2 storage
+r2:
+  bucket: drone-falcon
+  raw_prefix: raw_v2/                    # gathered images
+  labels_prefix: labels/                 # COCO + verified JSONs
+  reviews_prefix: labels/reviews.json    # human verdicts saved by web UI
+
+# What to gather, organized by bucket. Each bucket is a folder under data_root
+# and a corresponding R2 prefix. Multiple queries are OR'd via DDG/Wikimedia.
+buckets:
+  positive/fiber_spool_drone:
+    queries:
+      - "fiber optic FPV drone"
+      - "tethered fiber optic drone"
+      - "Ukraine fiber optic drone war"
+      - "fiber optic kamikaze drone"
+      - "fiber optic drone payload"
+      - "wired FPV drone Ukraine"
+      - "fiber optic drone with spool"
+      - "Russian fiber optic drone"
+      - "fiber optic dispenser drone"
+      - "fiber optic combat drone"
+
+  positive/spool_only:
+    queries:
+      - "fiber optic cable spool"
+      - "optical fiber reel"
+      - "fiber optic winding machine"
+      - "spooled optical fiber cable"
+      - "fiber optic cable on reel"
+      - "optical fiber cable drum"
+
+  negative/drones_no_spool:
+    queries:
+      - "DJI Mavic 3 Pro photo"
+      - "FPV racing drone closeup"
+      - "consumer quadcopter flying"
+      - "agricultural spraying drone"
+      - "DJI Mini 4 Pro photo"
+      - "Autel Evo drone"
+      - "Skydio 2 drone"
+      - "racing drone build"
+
+  distractor/round_things:
+    queries:
+      - "garden hose reel"
+      - "cable drum reel industrial"
+      - "duct tape roll"
+      - "fire hose reel"
+      - "rope coil pile"
+      - "extension cord reel"
+      - "thread spool sewing"
+
+  background/empty:
+    queries:
+      - "blue sky clouds"
+      - "open field landscape"
+      - "industrial workshop interior"
+      - "outdoor military training"
+
+# What Falcon Perception should look for in each image (the bbox grounding queries).
+# These are the specific objects we want bounding boxes on.
+falcon_queries:
+  - "fiber optic spool"
+  - "cable spool"
+  - "drone"
+  - "quadcopter"
+  - "fiber optic drone"
+
+# Optional: prompt overrides. Default templates use {target_object} substitution.
+# Leave commented to use the defaults from lib/project.py.
+prompts:
+  filter: |
+    Look at this image. Does it show a {target_object}, a related component
+    (cable spool, fiber reel, wound cable), or any other relevant object?
+    Answer with exactly one word: YES or NO.
+    YES if you see ANY of: a {target_object}, a quadcopter, a cable reel, a fiber spool.
+    NO if the main subject is something else.
+
+  verify: |
+    Look carefully at this image crop.
+    Question: Is the main object in this crop actually a {query}?
+    Answer first with one word: YES, NO, or UNSURE.
+    Then briefly say what the object actually is in 5-10 words.
+
+# Which model backend to use per stage.
+# qwen   = Qwen2.5-VL-3B via mlx-vlm server (M4 :8291)  — fast, free
+# gemma  = Gemma 4 26B via mac_tensor (M4 :8500)        — slow chained agent
+# falcon = Falcon Perception via mac_tensor /api/falcon — bbox grounding only
+# pod    = remote RunPod GPU pod                        — fast, ~$0.15-1.65/run
+backends:
+  filter: qwen
+  label:  pod          # Falcon on RunPod for production scale
+  verify: pod          # Qwen on the same pod
+
+# Pod settings (only used when a stage backend = pod)
+pod:
+  gpu_types: ["NVIDIA L40S"]
+  data_centers: ["EU-RO-1", "EU-CZ-1", "EU-NL-1", "US-CA-2"]
+  image: "runpod/pytorch:1.0.3-cu1290-torch291-ubuntu2204"
+  container_disk_gb: 30
+  volume_gb: 30

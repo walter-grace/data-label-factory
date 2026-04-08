@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "data-label-factory"
+version = "0.1.0"
+description = "Generic auto-labeling pipeline for vision datasets — runs on a 16 GB Apple Silicon Mac via SSD-streaming MoE."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "walter-grace" },
+]
+keywords = [
+    "vision",
+    "dataset",
+    "labeling",
+    "annotation",
+    "object-detection",
+    "mlx",
+    "apple-silicon",
+    "qwen",
+    "gemma",
+    "falcon-perception",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+]
+
+dependencies = [
+    "pyyaml>=6.0",
+    "pillow>=9.0",
+    "requests>=2.28",
+]
+
+[project.optional-dependencies]
+gather = [
+    # Image-search gathering (DDG, Wikimedia, YouTube frame extraction)
+    "duckduckgo-search>=4.0",
+    "yt-dlp>=2024.0.0",
+]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.5.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/walter-grace/data-label-factory"
+Repository = "https://github.com/walter-grace/data-label-factory"
+HuggingFace = "https://huggingface.co/waltgrace/data-label-factory"
+Issues = "https://github.com/walter-grace/data-label-factory/issues"
+
+[project.scripts]
+data_label_factory = "data_label_factory.cli:main"
+data-label-factory = "data_label_factory.cli:main"
+
+[tool.setuptools]
+packages = ["data_label_factory"]
+
+[tool.setuptools.package-data]
+data_label_factory = ["*.py"]

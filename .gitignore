@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+env/
+.python-version
+
+# Node / Next.js (web UI)
+web/node_modules/
+web/.next/
+web/.turbo/
+web/out/
+web/*.log
+web/canvas-shot.mjs
+
+# Local data + experiment outputs
+data/
+experiments/
+*.coco.json
+*.verified.json
+keep_list.json
+manifest.json
+
+# Local model caches
+~/data-label-factory/
+~/models/
+
+# Secrets
+.env
+.env.local
+*.pem
+*.key
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
