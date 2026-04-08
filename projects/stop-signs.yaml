@@ -1,0 +1,72 @@
+# =====================================================================
+# stop-signs.yaml — proves the data labeling factory is GENERIC
+# =====================================================================
+#
+# Same pipeline as drones.yaml but for stop signs. The only changes are
+# the queries, the target_object, the data_root, and the falcon_queries.
+# All scripts read this YAML and adapt automatically — zero code changes
+# required to onboard a new object class.
+#
+# Run with:
+#     data_label_factory pipeline --project projects/stop-signs.yaml
+# =====================================================================
+
+project_name: stop-signs
+target_object: "stop sign"
+description: |
+  Smoke test project — train a stop sign detector for autonomous driving research.
+
+data_root: ~/data-label-factory/stop-signs
+
+r2:
+  bucket: drone-falcon         # reuse the same R2 bucket — different prefixes
+  raw_prefix: stop-signs/raw/
+  labels_prefix: stop-signs/labels/
+  reviews_prefix: stop-signs/labels/reviews.json
+
+buckets:
+  positive/clear_view:
+    queries:
+      - "stop sign closeup"
+      - "red stop sign octagon"
+      - "stop sign daytime"
+      - "stop sign intersection"
+
+  positive/partial_view:
+    queries:
+      - "stop sign occluded"
+      - "stop sign in distance"
+      - "stop sign at angle"
+
+  negative/other_signs:
+    queries:
+      - "yield sign"
+      - "speed limit sign"
+      - "do not enter sign"
+      - "one way sign"
+
+  distractor/red_signs:
+    queries:
+      - "red warning sign"
+      - "red circle traffic sign"
+      - "red parking sign"
+      - "no entry sign"
+
+  background/no_signs:
+    queries:
+      - "empty highway"
+      - "country road landscape"
+      - "city street empty"
+      - "parking lot empty"
+
+falcon_queries:
+  - "stop sign"
+  - "traffic sign"
+  - "red octagonal sign"
+  - "road sign"
+
+# Use only Qwen + local M4 for the smoke test (no RunPod)
+backends:
+  filter: qwen
+  label: qwen      # for smoke test, label with Qwen too — proves generic backend selection
+  verify: qwen
