@@ -1,3 +1,20 @@
+---
+license: apache-2.0
+language:
+  - en
+library_name: data-label-factory
+tags:
+  - vision
+  - dataset-labeling
+  - object-detection
+  - apple-silicon
+  - mlx
+  - qwen
+  - gemma
+  - falcon-perception
+pipeline_tag: image-feature-extraction
+---
+
 # data-label-factory
 
 A generic auto-labeling pipeline for vision datasets. Pick any object class in
@@ -56,10 +73,20 @@ pip install -e ".[gather]"
 cd web && npm install && cd ..
 ```
 
-You can also install directly from HuggingFace:
+Or install straight from GitHub without cloning first:
 
 ```bash
-pip install git+https://huggingface.co/waltgrace/data-label-factory
+pip install git+https://github.com/walter-grace/data-label-factory
+```
+
+The repo is also mirrored on Hugging Face at
+[`waltgrace/data-label-factory`](https://huggingface.co/waltgrace/data-label-factory).
+HF git serving doesn't play well with pip's partial-clone, so to install from
+HF use a regular clone:
+
+```bash
+git clone https://huggingface.co/waltgrace/data-label-factory
+cd data-label-factory && pip install -e .
 ```
 
 The factory CLI needs Python 3.10+. The backend servers (Qwen and/or Gemma)
