@@ -251,6 +251,27 @@ with thumbnail-grid + per-bbox approve/reject buttons.
 
 ---
 
+## Optional: GPU path via RunPod
+
+For larger runs (tens of thousands of images), there's an opt-in GPU path
+that orchestrates a RunPod pod, runs the same pipeline on it, and publishes
+the result straight to Hugging Face:
+
+```bash
+pip install -e ".[runpod]"
+export RUNPOD_API_KEY=rpa_xxxxxxxxxx
+python3 -m data_label_factory.runpod pipeline \
+    --project projects/drones.yaml --gpu L40S \
+    --publish-to <you>/<dataset>
+```
+
+See [`data_label_factory/runpod/README.md`](data_label_factory/runpod/README.md)
+for the full architecture, costs (~$0.06 for the canonical 2,260-image run),
+and pod-vs-serverless trade-offs. Local Mac execution is still the default —
+runpod is just an option.
+
+---
+
 ## Configuration reference
 
 ### Environment variables

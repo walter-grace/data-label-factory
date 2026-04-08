@@ -1,6 +1,7 @@
 # Worker image for the data-label-factory RunPod path.
 #
-# Build:
+# IMPORTANT: build context MUST be the repo root, not this folder.
+#   cd /path/to/data-label-factory
 #   docker build -t walter-grace/data-label-factory-worker:latest \
 #                -f data_label_factory/runpod/Dockerfile .
 #
@@ -8,6 +9,9 @@
 #   docker push walter-grace/data-label-factory-worker:latest
 #
 # Image is ~12 GB. First-time pull on a community pod takes 5-8 minutes.
+# The runpod/pytorch base image ships torch 2.7.1+cu128 which we deliberately
+# preserve — falcon-perception is installed --no-deps to avoid forcing a
+# 2-3 GB torch upgrade.
 
 FROM runpod/pytorch:1.0.3-cu1281-torch271-ubuntu2204
 
@@ -39,6 +43,11 @@ WORKDIR /workspace
 COPY data_label_factory/runpod/requirements-pod.txt /tmp/requirements-pod.txt
 RUN pip install --upgrade pip && \
     pip install -r /tmp/requirements-pod.txt
+
+# Falcon Perception goes in separately with --no-deps so its torch>=2.11
+# pin doesn't force a 2-3 GB upgrade of the base image's torch 2.7.1+cu128.
+# Its actual runtime deps are already pinned in requirements-pod.txt above.
+RUN pip install --no-deps falcon-perception
 
 # Install the data_label_factory package itself
 COPY pyproject.toml setup.py README.md /tmp/dlf/
