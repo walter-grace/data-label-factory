@@ -13,7 +13,10 @@
 # preserve — falcon-perception is installed --no-deps to avoid forcing a
 # 2-3 GB torch upgrade.
 
-FROM runpod/pytorch:1.0.3-cu1281-torch271-ubuntu2204
+# Use the cu12.9.0 + torch 2.9.1 base — falcon-perception's runtime is
+# proven to work against this combo (per the original drone-labeling run on
+# RunPod L40S in the auto-research workspace).
+FROM runpod/pytorch:1.0.3-cu1290-torch291-ubuntu2204
 
 LABEL org.opencontainers.image.source="https://github.com/walter-grace/data-label-factory"
 LABEL org.opencontainers.image.description="GPU worker for data-label-factory"
