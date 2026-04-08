@@ -5,15 +5,23 @@
 # on MLX instead of CUDA / torch.
 
 # --- Falcon Perception (the bbox grounder) ---
-# Soft-pinned to torch>=2.11 by the package, but actually works with the
-# torch 2.7.1+cu128 baked into the runpod/pytorch base image. If pip
-# refuses, install with --no-deps and hope.
-falcon-perception>=0.1.0
+# NOTE: falcon-perception is installed in the Dockerfile with --no-deps
+# because its torch>=2.11 pin would force a 2-3 GB upgrade of the base
+# image's torch 2.7.1+cu128, which actually works fine. Falcon's runtime
+# deps (transformers, accelerate, einops, opencv, scipy, pycocotools) are
+# listed below explicitly so the no-deps install still gets them.
+einops>=0.8.0
+opencv-python>=4.10.0
+scipy>=1.13.0
+pycocotools>=2.0.7
+tyro>=0.8.0
 
 # --- Vision-language models ---
-# Qwen 2.5-VL via transformers
-transformers>=4.49.0
-qwen-vl-utils[decord]>=0.0.10
+# Qwen 2.5-VL via transformers. We deliberately do NOT pull the [decord] extra:
+# decord is a video-frame helper that only ships Linux x86_64 wheels and we use
+# yt-dlp for video work anyway.
+transformers>=4.49.0,<5
+qwen-vl-utils>=0.0.10
 accelerate>=0.34
 safetensors>=0.4
 
