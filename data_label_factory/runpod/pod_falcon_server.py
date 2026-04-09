@@ -168,50 +168,134 @@ async def falcon(image: UploadFile = File(...), query: str = Form(...)) -> JSONR
 # ============================================================
 
 _engine = None
-_processor = None
+_tokenizer = None
+_image_processor = None
 _model = None
+_model_args = None
+_sampling_params = None
+_torch = None  # cached torch module reference
 
 
 def _run_inference(pil_img: "Image.Image", query: str) -> dict:
-    """Single-image Falcon Perception forward pass."""
-    if _engine is None or _processor is None:
+    """Single-image Falcon Perception forward pass.
+
+    Uses task='segmentation' per the prior session learning ('detection mode
+    returns empty bboxes'). Extracts bboxes from each segmentation mask via
+    pycocotools mask decoding.
+    """
+    if _engine is None:
         raise RuntimeError("model not loaded")
 
     from falcon_perception import build_prompt_for_task  # type: ignore
-    from falcon_perception.paged_inference import SamplingParams, Sequence  # type: ignore
+    from falcon_perception.paged_inference import Sequence  # type: ignore
 
-    prompt = build_prompt_for_task("segmentation", query)
-    params = SamplingParams(max_new_tokens=512, temperature=0.0)
-    seq = Sequence(prompt=prompt, image=pil_img, sampling_params=params)
-    out = _engine.generate([seq])[0]
-
-    raw_boxes = getattr(out, "bbox_entries", None) or getattr(out, "boxes", []) or []
-
-    masks = []
     W, H = pil_img.size
-    for b in raw_boxes:
-        bn = b.get("bbox_norm") if isinstance(b, dict) else None
-        if not bn:
-            # Try other shapes
-            x1 = b.get("x1") if isinstance(b, dict) else None
-            if x1 is None:
-                continue
-            bn = {
-                "x1": x1 / W if x1 > 1 else x1,
-                "y1": b.get("y1", 0) / H if b.get("y1", 0) > 1 else b.get("y1", 0),
-                "x2": b.get("x2", 0) / W if b.get("x2", 0) > 1 else b.get("x2", 0),
-                "y2": b.get("y2", 0) / H if b.get("y2", 0) > 1 else b.get("y2", 0),
-            }
-        masks.append({
-            "bbox_norm":     bn,
-            "area_fraction": float(b.get("area_fraction", 1.0)) if isinstance(b, dict) else 1.0,
-        })
-    return {"count": len(masks), "masks": masks}
+    task = "segmentation" if getattr(_model_args, "do_segmentation", False) else "detection"
+    prompt = build_prompt_for_task(query, task)
+
+    sequences = [Sequence(
+        text=prompt,
+        image=pil_img,
+        min_image_size=256,
+        max_image_size=1024,
+        task=task,
+    )]
+    with _torch.inference_mode():
+        _engine.generate(
+            sequences,
+            sampling_params=_sampling_params,
+            use_tqdm=False,
+            print_stats=False,
+        )
+    seq = sequences[0]
+    aux = seq.output_aux
+
+    masks_out: list[dict] = []
+
+    # Path A: detection mode (bboxes_raw is populated)
+    bboxes_raw = getattr(aux, "bboxes_raw", None)
+    if bboxes_raw:
+        try:
+            from falcon_perception.visualization_utils import pair_bbox_entries  # type: ignore
+            pairs = pair_bbox_entries(bboxes_raw)
+            for entry in pairs:
+                if hasattr(entry, "_asdict"):
+                    d = entry._asdict()
+                elif isinstance(entry, dict):
+                    d = entry
+                else:
+                    vals = list(entry)
+                    if len(vals) < 5:
+                        continue
+                    d = {"x1": vals[1], "y1": vals[2], "x2": vals[3], "y2": vals[4]}
+                x1 = float(d.get("x1", 0)); y1 = float(d.get("y1", 0))
+                x2 = float(d.get("x2", 0)); y2 = float(d.get("y2", 0))
+                masks_out.append({
+                    "bbox_norm": {
+                        "x1": x1 / W if x1 > 1.5 else x1,
+                        "y1": y1 / H if y1 > 1.5 else y1,
+                        "x2": x2 / W if x2 > 1.5 else x2,
+                        "y2": y2 / H if y2 > 1.5 else y2,
+                    },
+                    "area_fraction": ((x2 - x1) * (y2 - y1)) / (W * H) if W and H else 0.0,
+                })
+        except Exception as e:
+            _log(f"pair_bbox_entries failed: {e}")
+
+    # Path B: segmentation mode (masks_rle is populated)
+    if not masks_out:
+        masks_rle = getattr(aux, "masks_rle", None) or []
+        for m in masks_rle:
+            try:
+                # Try to extract a bbox from the mask. Multiple possible shapes.
+                if isinstance(m, dict) and "bbox" in m:
+                    bb = m["bbox"]  # could be [x,y,w,h] or [x1,y1,x2,y2]
+                    if len(bb) == 4:
+                        x1, y1 = float(bb[0]), float(bb[1])
+                        # Heuristic: if last two are smaller than first two, treat as w/h
+                        if bb[2] < bb[0] or bb[3] < bb[1]:
+                            x2, y2 = x1 + float(bb[2]), y1 + float(bb[3])
+                        else:
+                            x2, y2 = float(bb[2]), float(bb[3])
+                        masks_out.append({
+                            "bbox_norm": {
+                                "x1": x1 / W if x1 > 1.5 else x1,
+                                "y1": y1 / H if y1 > 1.5 else y1,
+                                "x2": x2 / W if x2 > 1.5 else x2,
+                                "y2": y2 / H if y2 > 1.5 else y2,
+                            },
+                            "area_fraction": float(m.get("area", (x2 - x1) * (y2 - y1))) / max(W * H, 1),
+                        })
+                        continue
+                # Fall back to decoding the RLE mask via pycocotools
+                from pycocotools import mask as maskUtils  # type: ignore
+                import numpy as np  # type: ignore
+                rle = m if isinstance(m, dict) else {"counts": m, "size": [H, W]}
+                if "size" not in rle:
+                    rle["size"] = [H, W]
+                if isinstance(rle.get("counts"), str):
+                    rle["counts"] = rle["counts"].encode()
+                decoded = maskUtils.decode(rle)
+                if decoded is None or decoded.size == 0:
+                    continue
+                ys, xs = np.where(decoded > 0)
+                if xs.size == 0:
+                    continue
+                x1, y1 = int(xs.min()), int(ys.min())
+                x2, y2 = int(xs.max()), int(ys.max())
+                masks_out.append({
+                    "bbox_norm": {"x1": x1 / W, "y1": y1 / H, "x2": x2 / W, "y2": y2 / H},
+                    "area_fraction": float(decoded.sum()) / max(W * H, 1),
+                })
+            except Exception as e:
+                _log(f"mask parse failed: {e}")
+
+    return {"count": len(masks_out), "masks": masks_out}
 
 
 def _heavy_install_and_load() -> None:
     """Background thread: install heavy deps, download model, load inference engine."""
-    global _engine, _processor, _model
+    global _engine, _tokenizer, _image_processor, _model, _model_args, _sampling_params, _torch
     try:
         STATE["phase"] = "installing pip"
         _log("installing transformers + qwen-vl-utils + accelerate + safetensors …")
@@ -226,6 +310,7 @@ def _heavy_install_and_load() -> None:
             "pycocotools>=2.0.7",
             "tyro>=0.8.0",
             "huggingface_hub>=0.26",
+            "numpy<2",  # falcon-perception is happier with numpy 1.x
         ]):
             raise RuntimeError("pip install of heavy deps failed")
 
@@ -235,36 +320,74 @@ def _heavy_install_and_load() -> None:
             raise RuntimeError("pip install of falcon-perception failed")
 
         STATE["phase"] = "loading model"
-        _log("importing falcon_perception …")
+        _log("importing torch + falcon_perception …")
+        import torch as _t  # type: ignore
+        _torch = _t
+
         from falcon_perception import (  # type: ignore
             PERCEPTION_MODEL_ID,
+            build_prompt_for_task,
             load_and_prepare_model,
             setup_torch_config,
         )
-        from falcon_perception.paged_inference import PagedInferenceEngine  # type: ignore
+        from falcon_perception.data import ImageProcessor  # type: ignore
+        from falcon_perception.paged_inference import (  # type: ignore
+            PagedInferenceEngine,
+            SamplingParams,
+            Sequence,
+        )
 
         STATE["model_id"] = PERCEPTION_MODEL_ID
         _log(f"model id: {PERCEPTION_MODEL_ID}")
-
         _log("setting up torch …")
         setup_torch_config()
 
-        _log("loading model + processor (downloads ~600 MB on first run)…")
+        _log("loading model + processor (downloads ~600 MB on first run, may take 2-5 min)…")
         load_t0 = time.time()
-        _model, _processor = load_and_prepare_model(PERCEPTION_MODEL_ID)
-        _log("instantiating PagedInferenceEngine…")
-        _engine = PagedInferenceEngine(model=_model, processor=_processor)
+        _model, _tokenizer, _model_args = load_and_prepare_model(
+            hf_model_id=PERCEPTION_MODEL_ID,
+            hf_revision="main",
+            hf_local_dir=None,
+            device=None,         # let model pick CUDA
+            dtype="bfloat16",
+            compile=False,       # skip torch.compile to keep load fast (~30s vs 60s+)
+        )
+        _log("instantiating ImageProcessor + PagedInferenceEngine…")
+        _image_processor = ImageProcessor(patch_size=16, merge_size=1)
+        _engine = PagedInferenceEngine(
+            _model, _tokenizer, _image_processor,
+            max_batch_size=1,
+            max_seq_length=8192,
+            n_pages=128,
+            page_size=128,
+            prefill_length_limit=8192,
+            enable_hr_cache=False,
+            capture_cudagraph=False,
+        )
+        _sampling_params = SamplingParams(
+            stop_token_ids=[_tokenizer.eos_token_id, _tokenizer.end_of_query_token_id],
+        )
 
         STATE["load_seconds"] = round(time.time() - load_t0, 1)
+        STATE["device"] = "cuda" if _torch.cuda.is_available() else "cpu"
+
+        # Quick warmup so the first real request isn't 30s slower than steady state
+        _log("warmup pass on a dummy image…")
+        warmup_img = Image.new("RGB", (256, 256), color=(128, 128, 128))
+        warmup_seqs = [Sequence(
+            text=build_prompt_for_task("anything", "detection"),
+            image=warmup_img,
+            min_image_size=256,
+            max_image_size=512,
+            task="detection",
+        )]
+        with _torch.inference_mode():
+            _engine.generate(warmup_seqs, sampling_params=_sampling_params,
+                             use_tqdm=False, print_stats=False)
+
         STATE["phase"] = "ready"
         STATE["model_loaded"] = True
         _log(f"✓ READY in {time.time() - BOOT_T0:.1f}s total")
-
-        try:
-            import torch  # type: ignore
-            STATE["device"] = "cuda" if torch.cuda.is_available() else "cpu"
-        except Exception:
-            pass
 
     except Exception as e:
         STATE["phase"] = "FAILED"
