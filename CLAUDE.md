@@ -190,6 +190,30 @@ QWEN_URL=http://192.168.1.244:8291 data_label_factory status
 
 ---
 
+## Optional: open-set identification (`data_label_factory.identify`)
+
+If a user wants to **identify** which one of N known things they're holding
+up to a webcam (rather than detect arbitrary objects), point them at the
+identify subpackage. It's a CLIP retrieval index — needs only 1 image per
+class, no training required.
+
+```bash
+pip install -e ".[identify]"
+python3 -m data_label_factory.identify index  --refs ~/my-things/ --out my.npz
+python3 -m data_label_factory.identify verify --index my.npz
+# (optional) python3 -m data_label_factory.identify train --refs ~/my-things/ --out my-proj.pt
+python3 -m data_label_factory.identify serve  --index my.npz --refs ~/my-things/
+# → web/canvas/live talks to it via FALCON_URL=http://localhost:8500/api/falcon
+```
+
+The full blueprint for any image set is at
+`data_label_factory/identify/README.md`. **This is the right tool for
+"trading cards / products / album covers / parts catalog identification"
+use cases. The base data_label_factory pipeline is for closed-set bbox
+detection.**
+
+---
+
 ## Optional GPU path
 
 If a user has more than ~10k images and wants the run to finish in minutes

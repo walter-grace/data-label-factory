@@ -57,6 +57,18 @@ runpod = [
     "datasets>=3.0",
     "pyarrow>=17.0",
 ]
+identify = [
+    # Open-set CLIP retrieval: build/verify/train/serve a card-style index
+    "torch>=2.1",
+    "torchvision>=0.16",
+    "numpy>=1.24,<2",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "python-multipart>=0.0.20",
+    "pillow>=10.0",
+    "ultralytics>=8.3",
+    "clip @ git+https://github.com/openai/CLIP.git",
+]
 dev = [
     "pytest>=7.0",
     "ruff>=0.5.0",
@@ -73,8 +85,13 @@ data_label_factory = "data_label_factory.cli:main"
 data-label-factory = "data_label_factory.cli:main"
 
 [tool.setuptools]
-packages = ["data_label_factory", "data_label_factory.runpod"]
+packages = [
+    "data_label_factory",
+    "data_label_factory.runpod",
+    "data_label_factory.identify",
+]
 
 [tool.setuptools.package-data]
 data_label_factory = ["*.py"]
 "data_label_factory.runpod" = ["*.py", "*.md", "Dockerfile", "requirements-pod.txt"]
+"data_label_factory.identify" = ["*.py", "*.md"]

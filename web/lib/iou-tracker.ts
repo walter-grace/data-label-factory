@@ -12,6 +12,7 @@ export type Detection = {
     y2: number;
     score?: number;
     label?: string;
+    ref_url?: string;
 };
 
 export type Track = Detection & {
@@ -103,6 +104,7 @@ export class IoUTracker {
             t.x1 = d.x1; t.y1 = d.y1; t.x2 = d.x2; t.y2 = d.y2;
             t.score = d.score ?? t.score;
             t.label = d.label ?? t.label;
+            t.ref_url = d.ref_url ?? t.ref_url;
             t.age += 1;
             t.hits += 1;
             t.framesSinceSeen = 0;
