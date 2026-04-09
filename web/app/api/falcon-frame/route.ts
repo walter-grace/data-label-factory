@@ -24,6 +24,9 @@ type Bbox = {
     y2: number;
     score: number;
     label: string;
+    ref_url?: string;   // URL to a reference image (for the live tracker sidebar)
+    margin?: number;
+    confident?: boolean;
 };
 
 const FALCON_URL = process.env.FALCON_URL ?? "http://localhost:8500/api/falcon";
@@ -96,17 +99,30 @@ export async function POST(req: NextRequest) {
             upstreamCount = data.count ?? 0;
             imgW = data.image_size?.[0] ?? data.width ?? 0;
             imgH = data.image_size?.[1] ?? data.height ?? 0;
-            // mac_tensor returns masks: [{bbox_norm: {x1,y1,x2,y2}, slot, area_fraction}]
+            // mac_tensor returns masks: [{bbox_norm:{x1,y1,x2,y2}, area_fraction, label?, score?, ref_filename?}]
+            // The label/score/ref_filename are present in identify-mode (CLIP retrieval).
+            // Construct an absolute ref_url from the upstream base + filename so the
+            // browser can render the reference card image directly without an extra
+            // proxy hop.
+            const upstreamBase = new URL(FALCON_URL);
+            upstreamBase.pathname = "/refs/";
             for (const m of data.masks ?? []) {
                 const bn = m.bbox_norm ?? {};
                 if (bn.x1 == null) continue;
+                let ref_url: string | undefined = undefined;
+                if (typeof m.ref_filename === "string" && m.ref_filename) {
+                    ref_url = upstreamBase.toString() + m.ref_filename;
+                }
                 bboxes.push({
                     x1: bn.x1,
                     y1: bn.y1,
                     x2: bn.x2,
                     y2: bn.y2,
-                    score: m.area_fraction ?? 1,
-                    label: query,
+                    score: typeof m.score === "number" ? m.score : (m.area_fraction ?? 1),
+                    label: typeof m.label === "string" && m.label ? m.label : query,
+                    ref_url,
+                    margin: typeof m.margin === "number" ? m.margin : undefined,
+                    confident: typeof m.confident === "boolean" ? m.confident : undefined,
                 });
             }
         }

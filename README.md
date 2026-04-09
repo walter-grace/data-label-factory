@@ -272,6 +272,41 @@ runpod is just an option.
 
 ---
 
+## Optional: open-set image identification
+
+The base pipeline produces COCO labels for training a closed-set **detector**.
+The opt-in `data_label_factory.identify` subpackage produces a CLIP retrieval
+**index** for open-set identification — given a known set of N reference images,
+identify which one a webcam frame is showing. **Use it when you have 1 image
+per class and want zero training time.**
+
+```bash
+pip install -e ".[identify]"
+
+# Build an index from a folder of references
+python3 -m data_label_factory.identify index --refs ~/my-cards/ --out my.npz
+
+# Optional: contrastive fine-tune for fine-grained accuracy (~5 min on M4 MPS)
+python3 -m data_label_factory.identify train --refs ~/my-cards/ --out my-proj.pt
+python3 -m data_label_factory.identify index --refs ~/my-cards/ --out my.npz --projection my-proj.pt
+
+# Self-test the index
+python3 -m data_label_factory.identify verify --index my.npz
+
+# Serve as a mac_tensor-shaped /api/falcon endpoint
+python3 -m data_label_factory.identify serve --index my.npz --refs ~/my-cards/
+# → web/canvas/live can hit it with FALCON_URL=http://localhost:8500/api/falcon
+```
+
+Built-in **rarity / variant detection** for free — if your filenames encode a
+suffix like `_pscr`, `_scr`, `_ur`, the matched filename's suffix becomes a
+separate `rarity` field on the response. See
+[`data_label_factory/identify/README.md`](data_label_factory/identify/README.md)
+for the full blueprint and concrete examples (trading cards, album covers,
+industrial parts, plant species, …).
+
+---
+
 ## Configuration reference
 
 ### Environment variables

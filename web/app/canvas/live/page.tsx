@@ -25,7 +25,14 @@ type SourceMode = "idle" | "file" | "webcam";
 type FalconResponse = {
     ok: boolean;
     count?: number;
-    bboxes?: Array<{ x1: number; y1: number; x2: number; y2: number; score: number; label: string }>;
+    bboxes?: Array<{
+        x1: number; y1: number; x2: number; y2: number;
+        score: number;
+        label: string;
+        ref_url?: string;
+        margin?: number;
+        confident?: boolean;
+    }>;
     image_size?: { w: number; h: number };
     elapsed_ms?: number;
     upstream?: string;
@@ -42,6 +49,11 @@ export default function LiveTrackerPage() {
     const stopRef = useRef<boolean>(false);
     const streamRef = useRef<MediaStream | null>(null);
     const objectUrlRef = useRef<string | null>(null);
+
+    // Live query ref — read from inside the sendNextFrame loop instead of
+    // closure-captured `query` to avoid stale-closure bugs when the user
+    // types a new query mid-stream.
+    const queryRef = useRef<string>("fiber optic drone");
 
     const [mode, setMode] = useState<SourceMode>("idle");
     const [query, setQuery] = useState<string>("fiber optic drone");
@@ -98,7 +110,7 @@ export default function LiveTrackerPage() {
 
         const form = new FormData();
         form.set("image", blob, "frame.jpg");
-        form.set("query", query);
+        form.set("query", queryRef.current);
 
         let resp: FalconResponse;
         try {
@@ -133,6 +145,7 @@ export default function LiveTrackerPage() {
                 y2: isNormalized ? b.y2 * H : b.y2,
                 score: b.score,
                 label: b.label,
+                ref_url: b.ref_url,
             };
         });
 
@@ -347,7 +360,10 @@ export default function LiveTrackerPage() {
                                 <input
                                     type="text"
                                     value={query}
-                                    onChange={(e) => setQuery(e.target.value)}
+                                    onChange={(e) => {
+                                        setQuery(e.target.value);
+                                        queryRef.current = e.target.value;
+                                    }}
                                     className="px-3 py-1.5 rounded-md bg-zinc-800 border border-zinc-700 text-zinc-100 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                                     placeholder="e.g. fiber optic drone"
                                 />
@@ -394,19 +410,47 @@ export default function LiveTrackerPage() {
                         {activeTracks.length === 0 ? (
                             <div className="text-sm text-zinc-500">none yet</div>
                         ) : (
-                            <div className="space-y-2">
+                            <div className="space-y-3">
                                 {activeTracks.map((t) => (
-                                    <div key={t.id} className="flex items-center justify-between text-sm">
-                                        <div className="flex items-center gap-2 min-w-0">
-                                            <span
-                                                className="h-3 w-3 rounded-sm border border-zinc-600 flex-shrink-0"
-                                                style={{ backgroundColor: t.color }}
-                                            />
-                                            <span className="text-zinc-100 truncate">#{t.id} {t.label}</span>
+                                    <div
+                                        key={t.id}
+                                        className="rounded-md border border-zinc-800 bg-zinc-950 p-2"
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            {/* Reference card image (if backend provided one) */}
+                                            {t.ref_url ? (
+                                                /* eslint-disable-next-line @next/next/no-img-element */
+                                                <img
+                                                    src={t.ref_url}
+                                                    alt={t.label}
+                                                    className="w-16 h-auto rounded border-2 flex-shrink-0"
+                                                    style={{ borderColor: t.color }}
+                                                />
+                                            ) : (
+                                                <div
+                                                    className="w-16 h-22 rounded border-2 flex-shrink-0 flex items-center justify-center text-xs text-zinc-600"
+                                                    style={{ borderColor: t.color }}
+                                                >
+                                                    no ref
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span
+                                                        className="h-2 w-2 rounded-sm flex-shrink-0"
+                                                        style={{ backgroundColor: t.color }}
+                                                    />
+                                                    <span className="text-xs text-zinc-500 font-mono">#{t.id}</span>
+                                                </div>
+                                                <div className="text-sm text-zinc-100 leading-tight mt-1 break-words">
+                                                    {t.label}
+                                                </div>
+                                                <div className="text-xs text-zinc-500 mt-1.5 font-mono">
+                                                    {typeof t.score === "number" ? `score ${t.score.toFixed(2)} · ` : ""}
+                                                    seen {t.hits}/{t.age}f
+                                                </div>
+                                            </div>
                                         </div>
-                                        <span className="text-zinc-400 text-xs whitespace-nowrap ml-2">
-                                            {t.hits}/{t.age}f
-                                        </span>
                                     </div>
                                 ))}
                             </div>
