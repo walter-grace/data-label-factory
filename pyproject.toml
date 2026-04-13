@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "data-label-factory"
-version = "0.1.0"
+version = "0.2.0"
 description = "Generic auto-labeling pipeline for vision datasets — runs on a 16 GB Apple Silicon Mac via SSD-streaming MoE."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -69,6 +69,28 @@ identify = [
     "ultralytics>=8.3",
     "clip @ git+https://github.com/openai/CLIP.git",
 ]
+chandra = [
+    # Chandra OCR 2 — document/text labeling with spatial annotations
+    "chandra-ocr[hf]",
+    "transformers>=4.40",
+]
+wilddet3d = [
+    # WildDet3D — open-vocab 2D+3D detection (CUDA GPU required)
+    "torch>=2.5",
+    "torchvision>=0.20",
+    "einops",
+    "timm",
+    "transformers>=4.40",
+]
+mcp = [
+    # MCP server for AI agent integration
+    "mcp>=1.0",
+]
+flywheel = [
+    # Synthetic data generation (flywheel pattern)
+    "opencv-python>=4.8",
+    "numpy>=1.24",
+]
 dev = [
     "pytest>=7.0",
     "ruff>=0.5.0",
@@ -87,11 +109,13 @@ data-label-factory = "data_label_factory.cli:main"
 [tool.setuptools]
 packages = [
     "data_label_factory",
+    "data_label_factory.providers",
     "data_label_factory.runpod",
     "data_label_factory.identify",
 ]
 
 [tool.setuptools.package-data]
 data_label_factory = ["*.py"]
+"data_label_factory.providers" = ["*.py"]
 "data_label_factory.runpod" = ["*.py", "*.md", "Dockerfile", "requirements-pod.txt"]
 "data_label_factory.identify" = ["*.py", "*.md"]

@@ -75,7 +75,7 @@ QWEN_MODEL_PATH = os.environ.get(
 )
 GEMMA_URL = os.environ.get("GEMMA_URL", "http://localhost:8500")
 
-VALID_BACKENDS = ("qwen", "gemma")
+VALID_BACKENDS = ("qwen", "gemma", "chandra", "wilddet3d", "openrouter")
 
 
 # ============================================================
@@ -189,6 +189,121 @@ def resolve_backend(args, proj: ProjectConfig, stage: str) -> str:
     return backend
 
 
+def cmd_label_v2(args):
+    """Label images using the provider registry (v2 — supports all backends).
+
+    Supports: falcon (default), wilddet3d, chandra, or any registered provider.
+    """
+    from .providers import create_provider
+
+    proj = load_project(args.project)
+    backend = args.backend or proj.backend_for("label") or "falcon"
+    # Normalize legacy "pod" to "falcon"
+    if backend == "pod":
+        backend = "falcon"
+
+    img_root = proj.local_image_dir()
+    if not os.path.exists(img_root):
+        print(f"  no images at {img_root}; run gather first")
+        return
+
+    try:
+        provider = create_provider(backend)
+    except ValueError as e:
+        print(f"  {e}")
+        return
+
+    status = provider.status()
+    if not status.get("alive"):
+        print(f"  {backend} not available: {status.get('info', '')}")
+        return
+
+    images = []
+    for root, _, names in os.walk(img_root):
+        for n in names:
+            if n.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
+                full = os.path.join(root, n)
+                rel = os.path.relpath(full, img_root)
+                if "/" not in rel:
+                    continue
+                images.append((rel.split("/", 1)[0], rel, full))
+    if args.limit > 0:
+        images = images[:args.limit]
+
+    print(f"Labeling {len(images)} images via {backend} (v2 provider)")
+    print(f"  queries: {proj.falcon_queries}")
+
+    coco = {
+        "info": {
+            "description": f"data_label_factory v2 run for {proj.project_name} via {backend}",
+            "date_created": datetime.now().isoformat(timespec="seconds"),
+            "target_object": proj.target_object,
+            "backend": backend,
+        },
+        "images": [],
+        "annotations": [],
+        "categories": [
+            {"id": i + 1, "name": q, "supercategory": "object"}
+            for i, q in enumerate(proj.falcon_queries)
+        ],
+    }
+    cat_id = {q: i + 1 for i, q in enumerate(proj.falcon_queries)}
+    next_img_id, next_ann_id = 1, 1
+    n_total_dets = 0
+    t0 = time.time()
+
+    for i, (bucket, rel, full) in enumerate(images, 1):
+        try:
+            from PIL import Image
+            im = Image.open(full)
+            iw, ih = im.size
+        except Exception as e:
+            print(f"  skip {rel}: load fail {e}")
+            continue
+
+        img_id = next_img_id
+        next_img_id += 1
+        coco["images"].append({
+            "id": img_id, "file_name": rel, "width": iw, "height": ih, "bucket": bucket
+        })
+
+        result = provider.label_image(full, proj.falcon_queries, image_wh=(iw, ih))
+        for ann in result.annotations:
+            cat_name = ann.get("category", proj.falcon_queries[0])
+            cid = cat_id.get(cat_name)
+            if cid is None:
+                cid = len(coco["categories"]) + 1
+                coco["categories"].append({"id": cid, "name": cat_name, "supercategory": "object"})
+                cat_id[cat_name] = cid
+
+            coco["annotations"].append({
+                "id": next_ann_id, "image_id": img_id,
+                "category_id": cid,
+                "bbox": ann["bbox"],
+                "area": round(ann["bbox"][2] * ann["bbox"][3], 2),
+                "iscrowd": 0,
+                "score": ann.get("score", 1.0),
+            })
+            next_ann_id += 1
+            n_total_dets += 1
+
+        if i % 5 == 0 or i == len(images):
+            elapsed = time.time() - t0
+            rate = i / max(elapsed, 1)
+            eta = (len(images) - i) / max(rate, 0.001) / 60
+            print(f"  [{i:4d}/{len(images)}] dets={n_total_dets} ETA {eta:.0f} min")
+
+    exp_dir = (resolve_experiment(args.experiment) if args.experiment
+               else make_experiment_dir(f"label-{backend}-{proj.project_name}"))
+    out_dir = os.path.join(exp_dir, f"label_{backend}")
+    os.makedirs(out_dir, exist_ok=True)
+    out_path = os.path.join(out_dir, f"{proj.project_name}.coco.json")
+    with open(out_path, "w") as f:
+        json.dump(coco, f, indent=2)
+    print(f"\nSaved {out_path}")
+    print(f"  {len(coco['images'])} images, {len(coco['annotations'])} bboxes")
+
+
 def call_falcon_m4(image_path: str, query: str, timeout: int = 120) -> dict:
     """Hit mac_tensor /api/falcon (direct, no chained agent). Returns parsed JSON."""
     boundary = f"----factory{int(time.time()*1000)}"
@@ -244,6 +359,8 @@ def cmd_status(args):
     print("=" * 60)
     print(f"  QWEN_URL  = {QWEN_URL}   (override with env QWEN_URL)")
     print(f"  GEMMA_URL = {GEMMA_URL}  (override with env GEMMA_URL)")
+
+    # Legacy direct checks
     for name, url, info_path in [
         ("Qwen2.5-VL (mlx_vlm.server)", QWEN_URL, "/v1/models"),
         ("Gemma 4 + Falcon (mac_tensor)", GEMMA_URL, "/api/info"),
@@ -256,6 +373,23 @@ def cmd_status(args):
             print(f"  ✓ alive: {json.dumps(data)[:200]}")
         except Exception as e:
             print(f"  ✗ DOWN: {e}")
+
+    # v2 provider registry
+    try:
+        from .providers import list_providers, create_provider
+        print(f"\n  --- Provider Registry (v2) ---")
+        for pname in list_providers():
+            try:
+                p = create_provider(pname)
+                st = p.status()
+                flag = "✓" if st.get("alive") else "✗"
+                caps = ", ".join(sorted(p.capabilities)) if p.capabilities else "none"
+                info = str(st.get("info", ""))[:80]
+                print(f"  {flag} {pname:12s}  caps=[{caps}]  {info}")
+            except Exception as e:
+                print(f"  ✗ {pname:12s}  error: {e}")
+    except ImportError:
+        pass
 
 
 def cmd_project(args):
@@ -551,6 +685,91 @@ def cmd_list(args):
         print(f"  {e['name']:50s}  project={proj}")
 
 
+def cmd_providers(args):
+    """List all registered providers and their capabilities."""
+    from .providers import list_providers, create_provider
+    print("=" * 60)
+    print("Registered Providers")
+    print("=" * 60)
+    for pname in list_providers():
+        try:
+            p = create_provider(pname)
+            caps = ", ".join(sorted(p.capabilities)) if p.capabilities else "none"
+            st = p.status()
+            flag = "ALIVE" if st.get("alive") else "DOWN/NOT INSTALLED"
+            print(f"\n  {pname}")
+            print(f"    capabilities: {caps}")
+            print(f"    status:       {flag}")
+            info = st.get("info", "")
+            if info:
+                print(f"    info:         {str(info)[:100]}")
+        except Exception as e:
+            print(f"\n  {pname}")
+            print(f"    error: {e}")
+
+
+def cmd_auto(args):
+    """Auto-create a project from samples + description."""
+    from .auto import auto_project
+    output = args.output
+    if not output:
+        name = args.name or args.description.lower().replace(" ", "-")[:30]
+        output = f"projects/{name}.yaml"
+    auto_project(
+        samples=args.samples,
+        description=args.description,
+        project_name=args.name,
+        output=output,
+        analyze=not args.no_analyze,
+    )
+
+
+def cmd_serve_mcp(args):
+    """Run as MCP server for AI agents."""
+    from .mcp import main as mcp_main
+    mcp_main()
+
+
+def cmd_generate(args):
+    """Generate synthetic training data using the flywheel provider."""
+    from .providers import create_provider
+    provider = create_provider("flywheel", config={"refs_dir": args.refs})
+    summary = provider.generate_dataset(
+        refs_dir=args.refs,
+        output_dir=args.output,
+        n_scenes=args.scenes,
+    )
+    print(f"\n  Classes: {summary.get('n_classes', 0)}")
+    print(f"  COCO: {summary.get('coco_path', '')}")
+    print(f"  YOLO: {summary.get('yolo_data_yaml', '')}")
+
+
+def cmd_benchmark(args):
+    """Dispatch to benchmark module."""
+    from .benchmark import main as benchmark_main
+    # Re-pack args for the benchmark module
+    argv = []
+    if args.compare:
+        argv += ["--compare"] + list(args.compare)
+    elif args.score:
+        argv += ["--score", args.score]
+    elif args.run:
+        argv += ["--run"]
+    elif getattr(args, "models", False):
+        argv += ["--models"]
+    if getattr(args, "project", None):
+        argv += ["--project", args.project]
+    if getattr(args, "backends", None):
+        argv += ["--backends", args.backends]
+    if getattr(args, "model_list", None):
+        argv += ["--model-list", args.model_list]
+    if getattr(args, "limit", 0) > 0:
+        argv += ["--limit", str(args.limit)]
+    if getattr(args, "output", None):
+        argv += ["--output", args.output]
+    benchmark_main(argv)
+
+
 # ============================================================
 # MAIN
 # ============================================================
@@ -607,7 +826,56 @@ def main():
     spi.add_argument("--limit", type=int, default=0)
     add_backend_flag(spi)
 
+    sl2 = sub.add_parser("label-v2", help="Label via provider registry (falcon, wilddet3d, chandra)")
+    sl2.add_argument("--project", required=True)
+    sl2.add_argument("--backend", default=None,
+                     help="Label backend: falcon (default), wilddet3d, chandra")
+    sl2.add_argument("--experiment", default=None)
+    sl2.add_argument("--limit", type=int, default=0)
+
+    sb = sub.add_parser("benchmark", help="Compare labeling backends or VLM models")
+    sb_group = sb.add_mutually_exclusive_group(required=True)
+    sb_group.add_argument("--compare", nargs=2, metavar=("COCO_A", "COCO_B"),
+                          help="Compare two COCO files")
+    sb_group.add_argument("--score", metavar="EXP_DIR",
+                          help="Score a single experiment directory")
+    sb_group.add_argument("--run", action="store_true",
+                          help="Run fresh benchmark with multiple label backends")
+    sb_group.add_argument("--models", action="store_true",
+                          help="Model benchmark: compare VLMs for filter/verify accuracy")
+    sb.add_argument("--project", help="Project YAML (for --run / --models)")
+    sb.add_argument("--backends", default="falcon",
+                    help="Comma-separated backends (for --run, e.g. falcon,wilddet3d)")
+    sb.add_argument("--model-list",
+                    default="qwen,google/gemma-4-26b-a4b-it",
+                    help="Comma-separated model IDs for --models "
+                         "(e.g. qwen,google/gemma-4-26b-a4b-it,meta-llama/llama-4-scout)")
+    sb.add_argument("--limit", type=int, default=0)
+    sb.add_argument("--output", help="Output report path")
+
     sub.add_parser("list", help="List experiments")
+
+    sp_providers = sub.add_parser("providers", help="List registered providers and capabilities")
+
+    sa = sub.add_parser("auto", help="Auto-create project from samples + description")
+    sa.add_argument("--samples", required=True,
+                    help="Directory of sample images or single image path")
+    sa.add_argument("--description", required=True,
+                    help='What to label (e.g. "fire hydrants in urban settings")')
+    sa.add_argument("--name", default="", help="Project name (auto-generated if empty)")
+    sa.add_argument("--output", default="", help="Output YAML path")
+    sa.add_argument("--no-analyze", action="store_true",
+                    help="Skip VLM analysis of samples")
+
+    sub.add_parser("serve-mcp", help="Run as MCP server for AI agents (stdio)")
+
+    sg_syn = sub.add_parser("generate", help="Generate synthetic training data (flywheel)")
+    sg_syn.add_argument("--refs", required=True,
+                        help="Directory of reference images (PNGs with alpha preferred)")
+    sg_syn.add_argument("--output", default="flywheel_data",
+                        help="Output directory for generated dataset")
+    sg_syn.add_argument("--scenes", type=int, default=100,
+                        help="Number of scenes to generate")
 
     args = p.parse_args()
     cmd_func = {
@@ -616,8 +884,14 @@ def main():
         "gather": cmd_gather,
         "filter": cmd_filter,
         "label": cmd_label,
+        "label-v2": cmd_label_v2,
         "pipeline": cmd_pipeline,
         "list": cmd_list,
+        "providers": cmd_providers,
+        "benchmark": cmd_benchmark,
+        "auto": cmd_auto,
+        "serve-mcp": cmd_serve_mcp,
+        "generate": cmd_generate,
     }.get(args.command)
     if cmd_func is None:
         p.print_help()

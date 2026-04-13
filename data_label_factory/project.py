@@ -130,8 +130,13 @@ def load_project(path: str) -> ProjectConfig:
     r2 = data.get("r2", {})
     backends = data.get("backends", {})
     backends.setdefault("filter", "qwen")
-    backends.setdefault("label", "pod")
-    backends.setdefault("verify", "pod")
+    backends.setdefault("label", "falcon")
+    backends.setdefault("verify", "qwen")
+    # Normalize legacy "pod" → "falcon" for label stage
+    if backends.get("label") == "pod":
+        backends["label"] = "falcon"
+    if backends.get("verify") == "pod":
+        backends["verify"] = "qwen"
 
     return ProjectConfig(
         project_name=data["project_name"],

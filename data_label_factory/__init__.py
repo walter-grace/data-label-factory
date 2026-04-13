@@ -9,5 +9,5 @@ CLI entry point: `data_label_factory` (defined in pyproject.toml).
 
 from .project import load_project, ProjectConfig
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = ["load_project", "ProjectConfig", "__version__"]
