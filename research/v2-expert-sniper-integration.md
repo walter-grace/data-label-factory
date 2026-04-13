@@ -191,9 +191,111 @@ Optional extras:
 - `[mcp]` — `mcp`
 - `[flywheel]` — `opencv-python`, `numpy`
 
+## Falcon Perception on MLX
+
+Falcon Perception is now running natively on MLX via `mlx-vlm` 0.4.4.
+
+**Setup (Mac Mini M4):**
+```bash
+# Install Miniforge (user-local, no admin needed)
+curl -fsSL https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-MacOSX-arm64.sh -o /tmp/miniforge.sh
+bash /tmp/miniforge.sh -b -p ~/miniforge3
+
+# Install mlx-vlm (latest, with falcon_perception + gemma4 support)
+~/miniforge3/bin/pip install mlx mlx-vlm python-multipart
+
+# Convert Falcon Perception weights to MLX format
+~/miniforge3/bin/python3 -c "
+from mlx_vlm import convert
+convert('tiiuae/Falcon-Perception', '~/models/falcon-perception-mlx', trust_remote_code=True)
+"
+
+# Test
+~/miniforge3/bin/python3 -c "
+from mlx_vlm import load
+model, processor = load('~/models/falcon-perception-mlx', trust_remote_code=True)
+# model.generate_perception(processor, image=img, query='object', max_new_tokens=256)
+"
+```
+
+**Result:** 18 detections on a stop-sign image (stop signs, signs, poles) in 42.8s.
+
+**Important:** Requires Python 3.10+ (the HF model code uses `float | list` syntax).
+The Mac Mini shipped with Python 3.9 — Miniforge provides 3.13 without needing admin.
+
+## Web UI — Label Page
+
+The web UI at `/label` provides a visual interface to the full pipeline.
+
+### Quick Start
+
+```bash
+# Terminal 1: Start the Python API server
+cd data-label-factory
+GEMMA_URL=http://192.168.1.244:8500 python3 -m data_label_factory.serve --port 8400
+
+# Terminal 2: Start the Next.js web UI
+cd data-label-factory/web
+npm install    # first time only
+PORT=3030 npm run dev
+
+# Open http://localhost:3030/label
+```
+
+### How to Use
+
+1. **Check providers** — The status bar at the top shows which backends are alive
+   (green = ready, gray = offline). Gemma + Falcon need the Expert Sniper running.
+
+2. **Describe your target** — Type what you want to detect in the text field:
+   `stop signs`, `fire hydrants`, `trading cards`, etc.
+
+3. **Upload images** — Drag and drop images onto the upload area, or click to
+   select files. Thumbnails appear in the center column.
+
+4. **Pick backends** — Choose a filter backend (Gemma, Qwen, OpenRouter) and a
+   label backend (Falcon, WildDet3D, Chandra, Flywheel) from the dropdowns.
+
+5. **Filter All** — Click to run YES/NO classification on every image. Results
+   appear as color-coded badges (green YES, red NO) with timing. The summary
+   bar at the bottom shows counts and a progress bar.
+
+6. **Label individual images** — Click the "Label" button on any image to run
+   bbox detection. The canvas on the right draws color-coded bounding boxes
+   with category labels and confidence scores.
+
+7. **Review annotations** — Below the canvas, each detection shows:
+   - Category name and confidence percentage
+   - Pixel coordinates `[x, y, w, h]`
+   - Quality pass rate from deterministic metrics (green = all rules pass)
+
+### Architecture
+
+```
+Browser (localhost:3030/label)
+    ↓ fetch
+Next.js API route (/api/dlf)
+    ↓ proxy
+Python API server (localhost:8400)
+    ↓ provider registry
+Expert Sniper (192.168.1.244:8500)
+    ├── Gemma 4 26B (filter/verify)
+    └── Falcon Perception (label/bbox)
+```
+
+### Environment Variables
+
+| Var | Default | Purpose |
+|-----|---------|---------|
+| `GEMMA_URL` | `http://localhost:8500` | Expert Sniper endpoint |
+| `QWEN_URL` | `http://localhost:8291` | Qwen VLM endpoint |
+| `OPENROUTER_API_KEY` | (none) | OpenRouter cloud models |
+| `DLF_API_URL` | `http://localhost:8400` | Python API (for Next.js proxy) |
+| `DLF_UPLOAD_DIR` | `/tmp/dlf-uploads` | Temp upload storage |
+
 ## What's Next
 
 1. **Batch benchmark:** Run all 157 stop-sign images through Qwen vs Expert Sniper vs OpenRouter
-2. **Falcon Perception on MLX:** The latest mlx-vlm main branch has `falcon_perception` model support — need MLX-converted weights (current weights are PyTorch)
-3. **Pipeline v2 integration:** Wire `label-v2` into the full `pipeline` command
-4. **Web UI review:** Extend canvas viewer to show provider source per annotation
+2. **Pipeline v2 integration:** Wire `label-v2` into the full `pipeline` command
+3. **Web UI improvements:** Live progress streaming, batch label, export COCO from UI
+4. **Publish Falcon MLX weights:** Upload converted weights to HuggingFace so others skip the conversion step
