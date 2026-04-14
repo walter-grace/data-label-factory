@@ -38,6 +38,8 @@ import time
 import urllib.request
 from typing import Any
 
+import re as _re
+
 from . import Provider, FilterResult, VerifyResult, LabelResult, register_provider
 
 
@@ -241,4 +243,63 @@ class OpenRouterProvider(Provider):
             raw_answer=answer[:120],
             elapsed=elapsed,
             confidence=conf,
+        )
+
+    def label_image(self, image_path: str, queries: list[str],
+                    image_wh: tuple[int, int] | None = None) -> LabelResult:
+        """Bbox detection via Gemma 4 vision grounding.
+
+        Prompts the model to return bounding box coordinates for each query.
+        Gemma 4 supports grounded detection — it returns [y1, x1, y2, x2]
+        normalized to 0-1000 when prompted correctly.
+        """
+        if image_wh is None:
+            from PIL import Image
+            im = Image.open(image_path)
+            image_wh = im.size
+
+        iw, ih = image_wh
+        all_annotations = []
+        total_elapsed = 0.0
+
+        for query in queries:
+            prompt = (
+                f"Detect all instances of \"{query}\" in this image. "
+                f"For each instance, return a bounding box as [ymin, xmin, ymax, xmax] "
+                f"with coordinates normalized from 0 to 1000. "
+                f"Format each detection on its own line as: "
+                f"[ymin, xmin, ymax, xmax] label\n"
+                f"If none found, say NONE."
+            )
+
+            try:
+                answer, elapsed, _ = self._call(image_path, prompt, max_tokens=512, timeout=30)
+                answer = _strip_thinking(answer)
+                total_elapsed += elapsed
+            except Exception as e:
+                continue
+
+            # Parse bbox lines: [y1, x1, y2, x2] label
+            for line in answer.split("\n"):
+                line = line.strip()
+                match = _re.search(r'\[(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\]', line)
+                if match:
+                    y1 = int(match.group(1)) / 1000.0 * ih
+                    x1 = int(match.group(2)) / 1000.0 * iw
+                    y2 = int(match.group(3)) / 1000.0 * ih
+                    x2 = int(match.group(4)) / 1000.0 * iw
+                    w = max(0, x2 - x1)
+                    h = max(0, y2 - y1)
+                    if w > 0 and h > 0:
+                        all_annotations.append({
+                            "bbox": [round(x1, 2), round(y1, 2), round(w, 2), round(h, 2)],
+                            "category": query,
+                            "score": 0.8,
+                            "source": "openrouter",
+                        })
+
+        return LabelResult(
+            annotations=all_annotations,
+            elapsed=total_elapsed,
+            metadata={"model": self._model()},
         )

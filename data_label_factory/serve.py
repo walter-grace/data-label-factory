@@ -197,6 +197,57 @@ async def label_image(
         os.unlink(tmp_path)
 
 
+# ─── Ask (free-form VLM question) ─────────────────────────
+
+@app.post("/api/ask")
+async def ask_image(
+    image: UploadFile = File(...),
+    question: str = Form(default="What do you see in this image?"),
+    backend: str = Form(default="gemma"),
+):
+    """Ask a free-form question about an image via any VLM backend."""
+    from .providers import create_provider
+
+    suffix = Path(image.filename).suffix or ".jpg"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False, dir=str(UPLOAD_DIR)) as f:
+        f.write(await image.read())
+        tmp_path = f.name
+
+    try:
+        provider = create_provider(backend)
+        # Use _call for richer answers (more tokens than filter's 32)
+        if hasattr(provider, '_call'):
+            call_result = provider._call(tmp_path, question, max_tokens=256)
+            # Some providers return (text, elapsed), others (text, elapsed, usage)
+            if len(call_result) == 3:
+                answer, elapsed, _ = call_result
+            else:
+                answer, elapsed = call_result
+        else:
+            result = provider.filter_image(tmp_path, question)
+            answer = result.raw_answer
+            elapsed = result.elapsed
+
+        # Strip thinking tokens
+        if hasattr(provider, '_strip_thinking'):
+            from .providers.gemma import _strip_thinking
+            answer = _strip_thinking(answer)
+        elif 'thought' in answer.lower()[:20]:
+            import re
+            answer = re.sub(r'^(?:thought\s*\n?\s*)+', '', answer, flags=re.IGNORECASE).strip()
+
+        return {
+            "answer": answer,
+            "elapsed": round(elapsed, 2),
+            "backend": backend,
+            "question": question,
+        }
+    except Exception as e:
+        raise HTTPException(500, str(e))
+    finally:
+        os.unlink(tmp_path)
+
+
 # ─── Verify ────────────────────────────────────────────────
 
 @app.post("/api/verify")

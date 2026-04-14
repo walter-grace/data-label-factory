@@ -62,6 +62,8 @@ export default function LabelPage() {
   const [loading, setLoading] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState("");
   const [apiStatus, setApiStatus] = useState<"checking" | "up" | "down">("checking");
+  const [askAnswer, setAskAnswer] = useState<string | null>(null);
+  const [askElapsed, setAskElapsed] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -168,6 +170,51 @@ export default function LabelPage() {
     } catch (e: any) {
       console.error(e);
     }
+    setLoading(false);
+    setLoadingMsg("");
+  };
+
+  // Ask AI — runs BOTH question answering AND bbox detection in parallel
+  const askAI = async () => {
+    if (selectedImage === null || !files[selectedImage] || !description) return;
+    setLoading(true);
+    setLoadingMsg("Asking AI + detecting objects...");
+    setAskAnswer(null);
+
+    const file = files[selectedImage];
+
+    // Run ask + label in parallel
+    const askForm = new FormData();
+    askForm.append("image", file);
+    askForm.append("question", description);
+    askForm.append("backend", filterBackend);
+
+    const labelForm = new FormData();
+    labelForm.append("image", file);
+    labelForm.append("queries", description.replace(/\?/g, "").replace(/how many /gi, ""));
+    labelForm.append("backend", labelBackend);
+
+    const [askRes, labelRes] = await Promise.allSettled([
+      fetch(`${DLF_API}?path=/api/ask`, { method: "POST", body: askForm }).then(r => r.json()),
+      fetch(`${DLF_API}?path=/api/label`, { method: "POST", body: labelForm }).then(r => r.json()),
+    ]);
+
+    // Process ask result
+    if (askRes.status === "fulfilled") {
+      const data = askRes.value;
+      setAskAnswer(data.answer || data.error || "No response");
+      setAskElapsed(data.elapsed || 0);
+    } else {
+      setAskAnswer(`Error: ${askRes.reason}`);
+    }
+
+    // Process label result — draw bboxes
+    if (labelRes.status === "fulfilled" && labelRes.value.annotations) {
+      const data = labelRes.value as LabelResult;
+      setLabelResults((prev) => new Map(prev).set(file.name, data));
+      drawAnnotations(selectedImage, data);
+    }
+
     setLoading(false);
     setLoadingMsg("");
   };
@@ -298,13 +345,13 @@ export default function LabelPage() {
             {/* Description */}
             <div>
               <label className="block text-sm font-medium text-zinc-400 mb-1">
-                What are you labeling?
+                Target object or question
               </label>
               <input
                 type="text"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="e.g. stop signs, fire hydrants, trading cards..."
+                placeholder="e.g. stop signs, fire hydrants, or ask: how many birds?"
                 className="w-full px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-100 placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none"
               />
             </div>
@@ -394,7 +441,25 @@ export default function LabelPage() {
               >
                 {loading ? loadingMsg : "Filter All"}
               </button>
+              <button
+                onClick={askAI}
+                disabled={loading || !files.length || !description || selectedImage === null}
+                className="flex-1 px-4 py-3 bg-purple-600 hover:bg-purple-500 disabled:bg-zinc-800 disabled:text-zinc-600 rounded-lg font-medium transition-colors"
+              >
+                Ask AI
+              </button>
             </div>
+
+            {/* Ask AI answer */}
+            {askAnswer && (
+              <div className="bg-zinc-900 rounded-lg p-4 border border-purple-500/30">
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-purple-400 font-medium">AI Answer</span>
+                  <span className="text-zinc-500">{askElapsed}s</span>
+                </div>
+                <p className="text-zinc-200 text-sm whitespace-pre-wrap">{askAnswer}</p>
+              </div>
+            )}
 
             {/* Filter summary */}
             {filterResults.length > 0 && (

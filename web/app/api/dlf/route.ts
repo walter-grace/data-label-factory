@@ -16,11 +16,16 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const path = req.nextUrl.searchParams.get("path") || "/api/filter";
   try {
-    const formData = await req.formData();
+    // Forward the raw request body + content-type header to preserve multipart boundaries
+    const contentType = req.headers.get("content-type") || "";
+    const body = await req.arrayBuffer();
+
     const res = await fetch(`${DLF_API}${path}`, {
       method: "POST",
-      body: formData,
+      headers: { "Content-Type": contentType },
+      body: body,
     });
+
     const data = await res.json();
     return NextResponse.json(data);
   } catch (e: any) {

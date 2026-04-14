@@ -645,34 +645,368 @@ def cmd_label(args):
     print(f"  {len(coco['images'])} images, {len(coco['annotations'])} bboxes")
 
 
-def cmd_pipeline(args):
-    """Full pipeline: gather → filter for the project."""
+def cmd_verify_v2(args):
+    """Verify bboxes from a COCO file using a VLM provider (per-bbox YES/NO)."""
+    from .providers import create_provider
+
     proj = load_project(args.project)
+    backend = args.backend or proj.backend_for("verify") or "openrouter"
+
+    # Find COCO file
+    exp_dir = resolve_experiment(args.experiment) if args.experiment else resolve_experiment("latest")
+    coco_files = []
+    for dirpath, _, filenames in os.walk(exp_dir):
+        for fn in filenames:
+            if fn.endswith(".coco.json"):
+                coco_files.append(os.path.join(dirpath, fn))
+    if not coco_files:
+        print(f"  No COCO files in {exp_dir}")
+        return
+    coco_path = coco_files[0]
+    print(f"Verifying bboxes in {coco_path} via {backend}")
+
+    with open(coco_path) as f:
+        coco = json.load(f)
+
+    img_root = proj.local_image_dir()
+    images_by_id = {img["id"]: img for img in coco.get("images", [])}
+    categories = {cat["id"]: cat["name"] for cat in coco.get("categories", [])}
+    annotations = coco.get("annotations", [])
+
+    if args.limit > 0:
+        annotations = annotations[:args.limit]
+
+    try:
+        provider = create_provider(backend)
+    except Exception as e:
+        print(f"  {e}")
+        return
+
+    print(f"  {len(annotations)} bboxes to verify")
+    results = []
+    counts = {"YES": 0, "NO": 0, "UNSURE": 0, "ERROR": 0}
+    t0 = time.time()
+
+    for i, ann in enumerate(annotations, 1):
+        img = images_by_id.get(ann["image_id"], {})
+        img_path = os.path.join(img_root, img.get("file_name", ""))
+        cat_name = categories.get(ann.get("category_id"), "object")
+        bbox = ann["bbox"]
+
+        if not os.path.exists(img_path):
+            results.append({"ann_id": ann["id"], "verdict": "ERROR", "detail": "image not found"})
+            counts["ERROR"] += 1
+            continue
+
+        try:
+            vr = provider.verify_bbox(img_path, bbox, cat_name)
+            verdict = vr.verdict
+        except Exception as e:
+            verdict = "ERROR"
+            vr = type("VR", (), {"raw_answer": str(e), "elapsed": 0})()
+
+        counts[verdict] = counts.get(verdict, 0) + 1
+        results.append({
+            "ann_id": ann["id"], "image": img.get("file_name", ""),
+            "category": cat_name, "bbox": bbox,
+            "verdict": verdict, "raw_answer": vr.raw_answer[:120],
+            "elapsed": round(vr.elapsed, 2),
+        })
+
+        if i % 10 == 0 or i == len(annotations):
+            elapsed_total = time.time() - t0
+            rate = i / max(elapsed_total, 1)
+            eta = (len(annotations) - i) / max(rate, 0.001) / 60
+            print(f"  [{i:4d}/{len(annotations)}] YES={counts.get('YES',0)} NO={counts.get('NO',0)} "
+                  f"ERR={counts.get('ERROR',0)}  ETA {eta:.1f} min")
+
+    # Save
+    out_dir = os.path.join(exp_dir, f"verify_{backend}")
+    os.makedirs(out_dir, exist_ok=True)
+    out_path = os.path.join(out_dir, "verified.json")
+    with open(out_path, "w") as f:
+        json.dump({"backend": backend, "project": proj.project_name,
+                   "counts": counts, "results": results}, f, indent=2)
+    print(f"\nSaved {out_path}")
+    approve_rate = counts.get("YES", 0) / max(1, len(results))
+    print(f"  Approval rate: {approve_rate:.0%} ({counts.get('YES',0)}/{len(results)})")
+
+
+def cmd_pipeline(args):
+    """Full pipeline: gather → filter → label → verify → score.
+
+    Runs the complete data labeling factory end-to-end.
+    Uses the v2 provider registry for all stages.
+    """
+    from .providers import create_provider
+    from .metrics import score_coco
+
+    proj = load_project(args.project)
+    filter_backend = resolve_backend(args, proj, "filter")
+    label_backend = getattr(args, "label_backend", None) or proj.backend_for("label") or "falcon"
+    verify_backend = getattr(args, "verify_backend", None) or proj.backend_for("verify") or filter_backend
+
     print("=" * 70)
     print(f"PIPELINE — {proj.project_name} ({proj.target_object})")
+    print(f"  filter:  {filter_backend}")
+    print(f"  label:   {label_backend}")
+    print(f"  verify:  {verify_backend}")
     print("=" * 70)
 
     exp = make_experiment_dir(f"pipeline-{proj.project_name}")
     write_readme(exp, f"pipeline-{proj.project_name}",
                  description=f"Full pipeline for {proj.target_object}",
                  params=vars(args))
-    write_config(exp, {"project": proj.raw, **vars(args)})
+    write_config(exp, {"project": proj.raw, **vars(args),
+                       "filter_backend": filter_backend,
+                       "label_backend": label_backend,
+                       "verify_backend": verify_backend})
     update_latest_symlink(exp)
     print(f"Experiment: {exp}\n")
 
-    # 1. Gather
-    print(">>> GATHER")
-    args.experiment = os.path.basename(exp).split("_", 2)[-1]
-    cmd_gather(args)
+    skip_gather = getattr(args, "skip_gather", False)
+    img_root = proj.local_image_dir()
 
-    # 2. Filter
-    print("\n>>> FILTER")
-    args.experiment = os.path.basename(exp)
-    cmd_filter(args)
+    # ── 1. GATHER ──
+    if not skip_gather:
+        print("=" * 50)
+        print(">>> [1/4] GATHER")
+        print("=" * 50)
+        args.experiment = os.path.basename(exp).split("_", 2)[-1]
+        cmd_gather(args)
+    else:
+        print(">>> [1/4] GATHER — skipped (--skip-gather)")
 
-    # Label + verify TBD via pod or qwen — skipping in this MVP
-    print("\n>>> LABEL + VERIFY: skipped in MVP — use drone_factory pod path or extend")
-    print(f"\nPIPELINE DONE — {exp}")
+    # Collect images
+    images = []
+    if os.path.exists(img_root):
+        for root, _, names in os.walk(img_root):
+            for n in names:
+                if n.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
+                    full = os.path.join(root, n)
+                    rel = os.path.relpath(full, img_root)
+                    parts = rel.split("/")
+                    if len(parts) < 2:
+                        continue
+                    images.append(("/".join(parts[:2]), rel, full))
+    if args.limit > 0:
+        images = images[:args.limit]
+    print(f"\n  {len(images)} images found in {img_root}")
+
+    if not images:
+        print("  No images — pipeline stopped. Run gather first.")
+        return
+
+    # ── 2. FILTER ──
+    print("\n" + "=" * 50)
+    print(f">>> [2/4] FILTER via {filter_backend}")
+    print("=" * 50)
+
+    try:
+        filter_prov = create_provider(filter_backend)
+    except Exception as e:
+        print(f"  Filter provider error: {e}")
+        print("  Falling back to all-YES (no filter)")
+        filter_prov = None
+
+    prompt = proj.prompt("filter")
+    filter_results = []
+    counts = {"YES": 0, "NO": 0, "UNKNOWN": 0, "ERROR": 0}
+    t0 = time.time()
+
+    for i, (bucket, rel, full) in enumerate(images, 1):
+        if filter_prov:
+            fr = filter_prov.filter_image(full, prompt)
+            verdict = fr.verdict
+            raw = fr.raw_answer
+            elapsed_img = fr.elapsed
+        else:
+            verdict, raw, elapsed_img = "YES", "no filter", 0
+
+        counts[verdict] = counts.get(verdict, 0) + 1
+        filter_results.append({
+            "image_path": rel, "bucket": bucket, "verdict": verdict,
+            "raw_answer": raw[:120], "elapsed_seconds": round(elapsed_img, 3),
+        })
+        if i % 10 == 0 or i == len(images):
+            elapsed_total = time.time() - t0
+            rate = i / max(elapsed_total, 1)
+            eta = (len(images) - i) / max(rate, 0.001) / 60
+            print(f"  [{i:4d}/{len(images)}] YES={counts['YES']} NO={counts['NO']}  ETA {eta:.0f} min")
+
+    out_dir = os.path.join(exp, f"filter_{filter_backend}")
+    os.makedirs(out_dir, exist_ok=True)
+    with open(os.path.join(out_dir, "keep_list.json"), "w") as f:
+        json.dump({"backend": filter_backend, "project": proj.project_name,
+                   "counts": counts, "results": filter_results}, f, indent=2)
+    print(f"  YES rate: {counts['YES']}/{len(images)} ({counts['YES']/max(1,len(images)):.0%})")
+
+    # Keep only YES images for labeling
+    yes_images = [(b, r, full) for (b, r, full), fr in zip(images, filter_results)
+                  if fr["verdict"] == "YES"]
+    print(f"  {len(yes_images)} images pass filter → label stage")
+
+    if not yes_images:
+        print("  No images passed filter — pipeline stopped.")
+        print(f"\nPIPELINE DONE — {exp}")
+        return
+
+    # ── 3. LABEL ──
+    print("\n" + "=" * 50)
+    print(f">>> [3/4] LABEL via {label_backend}")
+    print("=" * 50)
+
+    try:
+        label_prov = create_provider(label_backend)
+    except Exception as e:
+        print(f"  Label provider error: {e}")
+        print(f"\nPIPELINE STOPPED at label stage — {exp}")
+        return
+
+    from PIL import Image
+    coco = {
+        "info": {
+            "description": f"data_label_factory pipeline for {proj.project_name}",
+            "date_created": datetime.now().isoformat(timespec="seconds"),
+            "target_object": proj.target_object,
+            "filter_backend": filter_backend,
+            "label_backend": label_backend,
+        },
+        "images": [],
+        "annotations": [],
+        "categories": [
+            {"id": i + 1, "name": q, "supercategory": "object"}
+            for i, q in enumerate(proj.falcon_queries)
+        ],
+    }
+    cat_id = {q: i + 1 for i, q in enumerate(proj.falcon_queries)}
+    next_img_id, next_ann_id = 1, 1
+    n_total_dets = 0
+    t0 = time.time()
+
+    for i, (bucket, rel, full) in enumerate(yes_images, 1):
+        try:
+            im = Image.open(full)
+            iw, ih = im.size
+        except Exception as e:
+            continue
+
+        img_id = next_img_id
+        next_img_id += 1
+        coco["images"].append({
+            "id": img_id, "file_name": rel, "width": iw, "height": ih, "bucket": bucket
+        })
+
+        result = label_prov.label_image(full, proj.falcon_queries, image_wh=(iw, ih))
+        for ann in result.annotations:
+            cat_name = ann.get("category", proj.falcon_queries[0])
+            cid = cat_id.get(cat_name)
+            if cid is None:
+                cid = len(coco["categories"]) + 1
+                coco["categories"].append({"id": cid, "name": cat_name, "supercategory": "object"})
+                cat_id[cat_name] = cid
+
+            coco["annotations"].append({
+                "id": next_ann_id, "image_id": img_id,
+                "category_id": cid,
+                "bbox": ann["bbox"],
+                "area": round(ann["bbox"][2] * ann["bbox"][3], 2),
+                "iscrowd": 0,
+                "score": ann.get("score", 1.0),
+            })
+            next_ann_id += 1
+            n_total_dets += 1
+
+        if i % 5 == 0 or i == len(yes_images):
+            elapsed = time.time() - t0
+            rate = i / max(elapsed, 1)
+            eta = (len(yes_images) - i) / max(rate, 0.001) / 60
+            print(f"  [{i:4d}/{len(yes_images)}] dets={n_total_dets}  ETA {eta:.0f} min")
+
+    out_dir = os.path.join(exp, f"label_{label_backend}")
+    os.makedirs(out_dir, exist_ok=True)
+    coco_path = os.path.join(out_dir, f"{proj.project_name}.coco.json")
+    with open(coco_path, "w") as f:
+        json.dump(coco, f, indent=2)
+    print(f"  {len(coco['images'])} images, {n_total_dets} bboxes → {coco_path}")
+
+    # ── 4. VERIFY ──
+    print("\n" + "=" * 50)
+    print(f">>> [4/4] VERIFY via {verify_backend}")
+    print("=" * 50)
+
+    try:
+        verify_prov = create_provider(verify_backend)
+    except Exception as e:
+        print(f"  Verify provider error: {e} — skipping verify")
+        verify_prov = None
+
+    verify_results = []
+    v_counts = {"YES": 0, "NO": 0, "UNSURE": 0, "ERROR": 0}
+
+    if verify_prov and n_total_dets > 0:
+        verify_limit = args.limit if args.limit > 0 else len(coco["annotations"])
+        anns_to_verify = coco["annotations"][:verify_limit]
+        t0 = time.time()
+
+        for i, ann in enumerate(anns_to_verify, 1):
+            img = {im["id"]: im for im in coco["images"]}.get(ann["image_id"], {})
+            img_path = os.path.join(img_root, img.get("file_name", ""))
+            cat_name = {c["id"]: c["name"] for c in coco["categories"]}.get(ann["category_id"], "object")
+
+            if not os.path.exists(img_path):
+                verify_results.append({"ann_id": ann["id"], "verdict": "ERROR"})
+                v_counts["ERROR"] += 1
+                continue
+
+            try:
+                vr = verify_prov.verify_bbox(img_path, ann["bbox"], cat_name)
+                verdict = vr.verdict
+            except Exception:
+                verdict = "ERROR"
+
+            v_counts[verdict] = v_counts.get(verdict, 0) + 1
+            verify_results.append({
+                "ann_id": ann["id"], "category": cat_name,
+                "verdict": verdict,
+            })
+
+            if i % 10 == 0 or i == len(anns_to_verify):
+                elapsed_total = time.time() - t0
+                rate = i / max(elapsed_total, 1)
+                eta = (len(anns_to_verify) - i) / max(rate, 0.001) / 60
+                print(f"  [{i:4d}/{len(anns_to_verify)}] YES={v_counts['YES']} NO={v_counts['NO']}  ETA {eta:.1f} min")
+
+        out_dir = os.path.join(exp, f"verify_{verify_backend}")
+        os.makedirs(out_dir, exist_ok=True)
+        with open(os.path.join(out_dir, "verified.json"), "w") as f:
+            json.dump({"backend": verify_backend, "counts": v_counts,
+                       "results": verify_results}, f, indent=2)
+        approve = v_counts.get("YES", 0) / max(1, len(verify_results))
+        print(f"  Approval: {v_counts.get('YES',0)}/{len(verify_results)} ({approve:.0%})")
+    else:
+        print("  Skipped (no provider or no detections)")
+
+    # ── SCORE ──
+    print("\n" + "=" * 50)
+    print(">>> QUALITY SCORE")
+    print("=" * 50)
+    score = score_coco(coco)
+    print(f"  Images:      {score.total_images}")
+    print(f"  Annotations: {score.total_annotations}")
+    print(f"  Pass rate:   {score.pass_rate:.0%}")
+    print(f"  Mean score:  {score.mean_score:.3f}")
+    for rule, rate in sorted(score.rule_breakdown.items()):
+        flag = "ok" if rate >= 0.95 else "WARN"
+        print(f"    {rule:20s} {rate:6.1%}  {flag}")
+
+    print(f"\n{'=' * 70}")
+    print(f"PIPELINE DONE — {exp}")
+    print(f"  COCO: {coco_path}")
+    print(f"  {len(coco['images'])} images, {n_total_dets} bboxes, "
+          f"filter={counts['YES']}/{len(images)} YES, "
+          f"verify={v_counts.get('YES','?')}/{len(verify_results) if verify_results else '?'} approved")
+    print(f"{'=' * 70}")
 
 
 def cmd_list(args):
@@ -818,13 +1152,25 @@ def main():
     sl.add_argument("--experiment", default=None)
     sl.add_argument("--limit", type=int, default=0)
 
-    spi = sub.add_parser("pipeline", help="Full chain: gather → filter (label/verify TBD)")
+    spi = sub.add_parser("pipeline", help="Full chain: gather → filter → label → verify → score")
     spi.add_argument("--project", required=True)
     spi.add_argument("--max-per-query", type=int, default=20)
     spi.add_argument("--workers", type=int, default=50)
     spi.add_argument("--experiment", default=None)
     spi.add_argument("--limit", type=int, default=0)
+    spi.add_argument("--skip-gather", action="store_true",
+                     help="Skip image gathering (use existing images)")
+    spi.add_argument("--label-backend", default=None,
+                     help="Backend for bbox labeling (falcon, openrouter, etc.)")
+    spi.add_argument("--verify-backend", default=None,
+                     help="Backend for per-bbox verification")
     add_backend_flag(spi)
+
+    sv = sub.add_parser("verify", help="Verify bboxes in a COCO file via VLM")
+    sv.add_argument("--project", required=True)
+    sv.add_argument("--experiment", default=None)
+    sv.add_argument("--limit", type=int, default=0)
+    add_backend_flag(sv)
 
     sl2 = sub.add_parser("label-v2", help="Label via provider registry (falcon, wilddet3d, chandra)")
     sl2.add_argument("--project", required=True)
@@ -885,6 +1231,7 @@ def main():
         "filter": cmd_filter,
         "label": cmd_label,
         "label-v2": cmd_label_v2,
+        "verify": cmd_verify_v2,
         "pipeline": cmd_pipeline,
         "list": cmd_list,
         "providers": cmd_providers,
