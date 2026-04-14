@@ -53,6 +53,30 @@ UPLOAD_DIR = Path(os.environ.get("DLF_UPLOAD_DIR", "/tmp/dlf-uploads"))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _get_provider(backend: str):
+    """Create a provider, raising 400 for unknown backend names."""
+    from .providers import create_provider, list_providers
+    try:
+        return create_provider(backend)
+    except ValueError:
+        available = ", ".join(list_providers())
+        raise HTTPException(400, f"Unknown backend {backend!r}. Available: {available}")
+
+
+def _validate_image(tmp_path: str):
+    """Validate the uploaded file is a readable image, raising 400 if not."""
+    from PIL import Image
+    try:
+        img = Image.open(tmp_path)
+        img.verify()
+        # Re-open after verify (verify can close the file)
+        img = Image.open(tmp_path)
+        return img.size
+    except Exception:
+        os.unlink(tmp_path)
+        raise HTTPException(400, "Invalid image file. Upload a valid JPEG, PNG, or WebP.")
+
+
 # ─── Providers ──────────────────────────────────────────────
 
 @app.get("/api/providers")
@@ -122,10 +146,10 @@ async def auto_project(
 async def filter_image(
     image: UploadFile = File(...),
     prompt: str = Form(default="Does this image show the target object? Answer YES or NO."),
-    backend: str = Form(default="qwen"),
+    backend: str = Form(default="openrouter"),
 ):
     """Filter a single image via a VLM backend."""
-    from .providers import create_provider
+    provider = _get_provider(backend)
 
     # Save temp file
     suffix = Path(image.filename).suffix or ".jpg"
@@ -133,8 +157,9 @@ async def filter_image(
         f.write(await image.read())
         tmp_path = f.name
 
+    _validate_image(tmp_path)
+
     try:
-        provider = create_provider(backend)
         result = provider.filter_image(tmp_path, prompt)
         return {
             "verdict": result.verdict,
@@ -158,18 +183,16 @@ async def label_image(
     backend: str = Form(default="falcon"),
 ):
     """Label a single image — returns COCO-style bboxes."""
-    from .providers import create_provider
-    from PIL import Image
+    provider = _get_provider(backend)
 
     suffix = Path(image.filename).suffix or ".jpg"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False, dir=str(UPLOAD_DIR)) as f:
         f.write(await image.read())
         tmp_path = f.name
 
+    iw, ih = _validate_image(tmp_path)
+
     try:
-        provider = create_provider(backend)
-        im = Image.open(tmp_path)
-        iw, ih = im.size
         query_list = [q.strip() for q in queries.split(",")]
         result = provider.label_image(tmp_path, query_list, image_wh=(iw, ih))
 
@@ -203,18 +226,19 @@ async def label_image(
 async def ask_image(
     image: UploadFile = File(...),
     question: str = Form(default="What do you see in this image?"),
-    backend: str = Form(default="gemma"),
+    backend: str = Form(default="openrouter"),
 ):
     """Ask a free-form question about an image via any VLM backend."""
-    from .providers import create_provider
+    provider = _get_provider(backend)
 
     suffix = Path(image.filename).suffix or ".jpg"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False, dir=str(UPLOAD_DIR)) as f:
         f.write(await image.read())
         tmp_path = f.name
 
+    _validate_image(tmp_path)
+
     try:
-        provider = create_provider(backend)
         # Use _call for richer answers (more tokens than filter's 32)
         if hasattr(provider, '_call'):
             call_result = provider._call(tmp_path, question, max_tokens=256)
@@ -255,19 +279,23 @@ async def verify_bbox(
     image: UploadFile = File(...),
     bbox: str = Form(...),  # JSON: [x, y, w, h]
     query: str = Form(default="object"),
-    backend: str = Form(default="qwen"),
+    backend: str = Form(default="openrouter"),
 ):
     """Verify a single bbox crop."""
-    from .providers import create_provider
+    provider = _get_provider(backend)
 
     suffix = Path(image.filename).suffix or ".jpg"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False, dir=str(UPLOAD_DIR)) as f:
         f.write(await image.read())
         tmp_path = f.name
 
+    _validate_image(tmp_path)
+
     try:
-        provider = create_provider(backend)
-        bbox_list = json.loads(bbox)
+        try:
+            bbox_list = json.loads(bbox)
+        except (json.JSONDecodeError, TypeError):
+            raise HTTPException(400, f"Invalid bbox JSON: {bbox!r}. Expected [x, y, w, h].")
         result = provider.verify_bbox(tmp_path, bbox_list, query)
         return {
             "verdict": result.verdict,
@@ -276,6 +304,8 @@ async def verify_bbox(
             "confidence": result.confidence,
             "backend": backend,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, str(e))
     finally:
@@ -307,11 +337,10 @@ async def score_coco(coco_file: UploadFile = File(...)):
 @app.post("/api/pipeline")
 async def run_pipeline(
     description: str = Form(...),
-    backend: str = Form(default="gemma"),
+    backend: str = Form(default="openrouter"),
     samples: list[UploadFile] = File(default=[]),
 ):
     """Full pipeline: upload samples → auto project → filter → return results."""
-    from .providers import create_provider
     from .auto import detect_content_type, CONTENT_PROFILES
 
     session_id = f"pipeline_{int(time.time())}"
@@ -331,11 +360,7 @@ async def run_pipeline(
 
     # Use the recommended filter backend or override
     filter_backend = backend if backend != "auto" else profile["filter_backend"]
-
-    try:
-        provider = create_provider(filter_backend)
-    except Exception as e:
-        return {"error": f"Backend {filter_backend} not available: {e}"}
+    provider = _get_provider(filter_backend)
 
     prompt = (
         f"Look at this image. Does it show a {description}? "

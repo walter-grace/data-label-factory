@@ -48,9 +48,14 @@ class GemmaProvider(Provider):
         return self.config.get("url") or os.environ.get("GEMMA_URL", "http://localhost:8500")
 
     def status(self) -> dict[str, Any]:
+        """Check if a real Gemma/Expert Sniper server is running (not Falcon)."""
         try:
             with urllib.request.urlopen(f"{self._url()}/api/info", timeout=5) as r:
                 data = json.loads(r.read())
+            # Falcon Perception server also serves /api/info but is NOT gemma.
+            # If the response indicates falcon, report gemma as unavailable.
+            if isinstance(data, dict) and data.get("falcon"):
+                return {"alive": False, "info": "GEMMA_URL points to Falcon server, not Gemma/Expert Sniper"}
             return {"alive": True, "info": data}
         except Exception as e:
             return {"alive": False, "info": str(e)}

@@ -1,311 +1,230 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Toaster } from "@/components/ui/sonner";
-import { toast } from "sonner";
-import { BboxOverlay, colorForQuery, type AnnotatedBbox } from "@/components/BboxOverlay";
-import type { ImageReview } from "@/lib/types";
-
-type LoadedImage = ImageReview & { url: string };
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
 export default function Home() {
-    const [images, setImages] = useState<LoadedImage[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [bucketFilter, setBucketFilter] = useState<string>("all");
-    const [selectedIdx, setSelectedIdx] = useState<number>(0);
-    const [activeBbox, setActiveBbox] = useState<number | null>(null);
-    const cardRef = useRef<HTMLDivElement>(null);
+  const [providers, setProviders] = useState<any[]>([]);
 
-    useEffect(() => {
-        fetch("/api/labels")
-            .then((r) => r.json())
-            .then((data) => {
-                if (data.error) setError(data.error);
-                else setImages(data.images ?? []);
-            })
-            .catch((e) => setError(String(e)))
-            .finally(() => setLoading(false));
-    }, []);
+  useEffect(() => {
+    fetch("/api/dlf?path=/api/providers")
+      .then((r) => r.json())
+      .then((d) => setProviders(d.providers ?? []))
+      .catch(() => {});
+  }, []);
 
-    const filtered = useMemo(() => {
-        if (bucketFilter === "all") return images;
-        return images.filter((i) => i.bucket === bucketFilter);
-    }, [images, bucketFilter]);
+  const alive = providers.filter((p) => p.alive);
 
-    const current = filtered[selectedIdx];
+  return (
+    <main className="min-h-screen bg-zinc-950 text-zinc-100">
+      {/* Hero */}
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-blue-950/30 via-zinc-950 to-zinc-950" />
+        <div className="relative mx-auto max-w-4xl px-6 py-24 text-center">
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900 px-4 py-1.5 text-sm text-zinc-300">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            {alive.length > 0
+              ? `${alive.length} AI backends online`
+              : "Connecting..."}
+          </div>
 
-    const annotated: AnnotatedBbox[] = useMemo(() => {
-        if (!current) return [];
-        return current.bboxes.map((b, idx) => ({ ...b, idx }));
-    }, [current]);
+          <h1 className="text-5xl font-bold tracking-tight sm:text-6xl">
+            Tell us what to detect.
+            <br />
+            <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+              We build the model.
+            </span>
+          </h1>
 
-    const queryStats = useMemo(() => {
-        if (!current) return [] as { query: string; count: number; approved: number; rejected: number }[];
-        const m = new Map<string, { query: string; count: number; approved: number; rejected: number }>();
-        for (const b of current.bboxes) {
-            const e = m.get(b.query) ?? { query: b.query, count: 0, approved: 0, rejected: 0 };
-            e.count++;
-            if (b.verdict === "approved") e.approved++;
-            if (b.verdict === "rejected") e.rejected++;
-            m.set(b.query, e);
-        }
-        return Array.from(m.values()).sort((a, b) => b.count - a.count);
-    }, [current]);
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-zinc-400">
+            Upload images or describe what you need — our AI pipeline gathers
+            data, labels bounding boxes, verifies quality, and exports a
+            ready-to-train YOLO dataset. From idea to custom vision model in
+            minutes.
+          </p>
 
-    const totalReviewed = images.filter((i) => i.image_verdict).length;
-    const totalApproved = images.filter((i) => i.image_verdict === "approved").length;
-    const totalRejected = images.filter((i) => i.image_verdict === "rejected").length;
+          <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+            <Link
+              href="/build"
+              className="inline-flex h-12 items-center gap-2 rounded-lg bg-blue-600 px-8 text-base font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-500"
+            >
+              Build a Dataset
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+              </svg>
+            </Link>
+            <Link
+              href="/label"
+              className="inline-flex h-12 items-center gap-2 rounded-lg border border-zinc-700 px-8 text-base font-medium text-zinc-300 transition hover:bg-zinc-800"
+            >
+              Label Images
+            </Link>
+          </div>
+        </div>
+      </section>
 
-    const bucketCounts = useMemo(() => {
-        const m = new Map<string, number>();
-        for (const i of images) m.set(i.bucket, (m.get(i.bucket) ?? 0) + 1);
-        return m;
-    }, [images]);
+      {/* How it works */}
+      <section className="border-t border-zinc-800 py-20">
+        <div className="mx-auto max-w-5xl px-6">
+          <h2 className="text-center text-3xl font-bold tracking-tight">
+            How it works
+          </h2>
+          <p className="mt-3 text-center text-zinc-400">
+            Five stages, fully automated. You just say what you need.
+          </p>
 
-    const saveReview = useCallback(async (img: LoadedImage) => {
-        try {
-            const res = await fetch("/api/labels", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(img),
-            });
-            const data = await res.json();
-            if (data.ok) toast.success(`Saved (${data.total_reviewed} reviewed)`);
-            else toast.error(data.error ?? "save failed");
-        } catch (e) {
-            toast.error(String(e));
-        }
-    }, []);
-
-    const setImageVerdict = useCallback(
-        (verdict: "approved" | "rejected" | "unsure") => {
-            if (!current) return;
-            const updated = { ...current, image_verdict: verdict };
-            setImages((prev) => prev.map((p) => (p.image_path === current.image_path ? updated : p)));
-            saveReview(updated);
-            setSelectedIdx((i) => Math.min(i + 1, filtered.length - 1));
-            setActiveBbox(null);
-        },
-        [current, filtered.length, saveReview],
-    );
-
-    const setBboxVerdict = useCallback(
-        (idx: number, verdict: "approved" | "rejected" | "unsure") => {
-            if (!current) return;
-            const newBboxes = current.bboxes.map((b, i) => (i === idx ? { ...b, verdict } : b));
-            const updated = { ...current, bboxes: newBboxes };
-            setImages((prev) => prev.map((p) => (p.image_path === current.image_path ? updated : p)));
-            saveReview(updated);
-        },
-        [current, saveReview],
-    );
-
-    useEffect(() => {
-        const onKey = (e: KeyboardEvent) => {
-            if (e.target instanceof HTMLInputElement) return;
-            if (e.key === "ArrowRight" || e.key === "j") {
-                setSelectedIdx((i) => Math.min(i + 1, filtered.length - 1));
-                setActiveBbox(null);
-            } else if (e.key === "ArrowLeft" || e.key === "k") {
-                setSelectedIdx((i) => Math.max(i - 1, 0));
-                setActiveBbox(null);
-            } else if (e.key === "y") {
-                setImageVerdict("approved");
-            } else if (e.key === "n") {
-                setImageVerdict("rejected");
-            } else if (e.key === "u") {
-                setImageVerdict("unsure");
-            }
-        };
-        window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
-    }, [filtered.length, setImageVerdict]);
-
-    if (loading) {
-        return (
-            <main className="min-h-screen bg-zinc-950 text-zinc-100 p-8">
-                <div className="text-2xl">Loading labels from R2…</div>
-            </main>
-        );
-    }
-
-    if (error) {
-        return (
-            <main className="min-h-screen bg-zinc-950 text-zinc-100 p-8">
-                <h1 className="text-3xl font-bold mb-4">drone-falcon factory</h1>
-                <Card className="bg-red-950 border-red-800">
-                    <CardContent className="pt-6">
-                        <div className="text-red-300">Error: {error}</div>
-                        <div className="text-zinc-400 mt-2 text-sm">
-                            The labeling pod is probably still running. Sync labels/partial.json to R2 to see them here.
-                        </div>
-                    </CardContent>
-                </Card>
-            </main>
-        );
-    }
-
-    const buckets = ["all", ...Array.from(bucketCounts.keys()).sort()];
-
-    return (
-        <main className="min-h-screen bg-zinc-950 text-zinc-100">
-            <Toaster theme="dark" position="bottom-right" />
-
-            <header className="border-b border-zinc-800 px-6 py-4">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold tracking-tight">drone-falcon · review factory</h1>
-                        <p className="text-sm text-zinc-400">human verification of Falcon Perception bboxes</p>
-                    </div>
-                    <div className="flex items-center gap-3 text-sm">
-                        <Badge variant="outline" className="border-zinc-700 text-zinc-300">{images.length} labeled</Badge>
-                        <Badge variant="outline" className="border-emerald-700 text-emerald-400">{totalApproved} approved</Badge>
-                        <Badge variant="outline" className="border-red-700 text-red-400">{totalRejected} rejected</Badge>
-                        <Badge variant="outline" className="border-zinc-700 text-zinc-300">{totalReviewed}/{images.length} reviewed</Badge>
-                    </div>
+          <div className="mt-14 grid gap-6 sm:grid-cols-5">
+            {[
+              { icon: "1", title: "Describe", desc: "Type what you want to detect or upload sample images" },
+              { icon: "2", title: "Gather", desc: "We search the web for matching images automatically" },
+              { icon: "3", title: "Filter", desc: "AI vision model checks each image — is this your target?" },
+              { icon: "4", title: "Label", desc: "Falcon Perception draws precise bounding boxes" },
+              { icon: "5", title: "Export", desc: "YOLO dataset ready to train — download and go" },
+            ].map((step, i) => (
+              <div key={i} className="relative text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-600/20 text-blue-400 text-lg font-bold">
+                  {step.icon}
                 </div>
-            </header>
+                {i < 4 && (
+                  <div className="absolute top-6 left-[calc(50%+28px)] hidden h-px w-[calc(100%-56px)] bg-zinc-700 sm:block" />
+                )}
+                <h3 className="mt-4 font-semibold">{step.title}</h3>
+                <p className="mt-2 text-sm text-zinc-400">{step.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-            <div className="border-b border-zinc-800 px-6 py-2">
-                <Tabs value={bucketFilter} onValueChange={(v) => { setBucketFilter(v); setSelectedIdx(0); }}>
-                    <TabsList className="bg-zinc-900">
-                        {buckets.map((b) => (
-                            <TabsTrigger key={b} value={b} className="data-[state=active]:bg-zinc-800">
-                                {b === "all" ? `All (${images.length})` : `${b} (${bucketCounts.get(b) ?? 0})`}
-                            </TabsTrigger>
-                        ))}
-                    </TabsList>
-                </Tabs>
-            </div>
+      {/* Input methods */}
+      <section className="border-t border-zinc-800 py-20">
+        <div className="mx-auto max-w-5xl px-6">
+          <h2 className="text-center text-3xl font-bold tracking-tight">
+            Three ways to get started
+          </h2>
 
-            <div className="grid grid-cols-12 gap-4 p-4">
-                <div className="col-span-2 max-h-[calc(100vh-180px)] overflow-y-auto pr-2 space-y-2">
-                    {filtered.map((img, idx) => (
-                        <button
-                            key={img.image_path}
-                            onClick={() => { setSelectedIdx(idx); setActiveBbox(null); }}
-                            className={`block w-full overflow-hidden rounded border-2 transition-all ${
-                                idx === selectedIdx ? "border-blue-500" : "border-zinc-800 hover:border-zinc-600"
-                            }`}
-                        >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={img.url} alt="" className="w-full h-20 object-cover" />
-                            <div className="bg-zinc-900 px-1 py-0.5 text-[10px] text-zinc-400 flex justify-between">
-                                <span>{img.bboxes.length} dets</span>
-                                <span>
-                                    {img.image_verdict === "approved" && "✓"}
-                                    {img.image_verdict === "rejected" && "✗"}
-                                </span>
-                            </div>
-                        </button>
+          <div className="mt-12 grid gap-6 sm:grid-cols-3">
+            {[
+              {
+                title: "Upload Images",
+                desc: "Drag and drop your own images. We label them with bounding boxes and export a YOLO dataset.",
+                icon: (
+                  <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                  </svg>
+                ),
+              },
+              {
+                title: "Paste a URL",
+                desc: "Roboflow dataset, GitHub repo, or any image URL. We pull the images and run the pipeline.",
+                icon: (
+                  <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.07-9.07a4.5 4.5 0 00-1.242-7.244l-4.5 4.5a4.5 4.5 0 006.364 6.364l1.757-1.757" />
+                  </svg>
+                ),
+              },
+              {
+                title: "Auto-Gather",
+                desc: "Just describe what you want. We search the internet, download images, and build the dataset for you.",
+                icon: (
+                  <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
+                  </svg>
+                ),
+              },
+            ].map((method, i) => (
+              <div
+                key={i}
+                className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 transition hover:border-zinc-700 hover:bg-zinc-900"
+              >
+                <div className="text-blue-400">{method.icon}</div>
+                <h3 className="mt-4 text-lg font-semibold">{method.title}</h3>
+                <p className="mt-2 text-sm text-zinc-400">{method.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Backends */}
+      {providers.length > 0 && (
+        <section className="border-t border-zinc-800 py-20">
+          <div className="mx-auto max-w-4xl px-6">
+            <h2 className="text-center text-3xl font-bold tracking-tight">
+              Powered by {alive.length} AI backends
+            </h2>
+            <p className="mt-3 text-center text-zinc-400">
+              Mix and match vision models for every stage of the pipeline
+            </p>
+
+            <div className="mt-10 grid gap-3 sm:grid-cols-2">
+              {providers.map((p) => (
+                <div
+                  key={p.name}
+                  className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`h-2.5 w-2.5 rounded-full ${
+                        p.alive ? "bg-emerald-400" : "bg-zinc-600"
+                      }`}
+                    />
+                    <span className="font-mono text-sm font-medium">
+                      {p.name}
+                    </span>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {(p.capabilities ?? []).map((c: string) => (
+                      <span
+                        key={c}
+                        className="rounded bg-zinc-800 px-2 py-0.5 text-[11px] text-zinc-400"
+                      >
+                        {c}
+                      </span>
                     ))}
+                  </div>
                 </div>
-
-                <div className="col-span-7" ref={cardRef}>
-                    {current ? (
-                        <Card className="bg-zinc-900 border-zinc-800">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-base font-mono text-zinc-300 truncate">{current.image_path}</CardTitle>
-                                <div className="text-xs text-zinc-500">
-                                    {current.width}×{current.height} · {current.bboxes.length} bboxes · {selectedIdx + 1}/{filtered.length}
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <BboxOverlay
-                                    src={current.url}
-                                    width={current.width}
-                                    height={current.height}
-                                    bboxes={annotated}
-                                    activeIdx={activeBbox}
-                                    onBboxClick={(idx) => setActiveBbox(idx)}
-                                />
-                                <div className="mt-4 flex gap-2">
-                                    <Button onClick={() => setImageVerdict("approved")} className="bg-emerald-700 hover:bg-emerald-600">
-                                        ✓ Approve image (Y)
-                                    </Button>
-                                    <Button onClick={() => setImageVerdict("rejected")} variant="destructive">
-                                        ✗ Reject image (N)
-                                    </Button>
-                                    <Button onClick={() => setImageVerdict("unsure")} variant="outline" className="border-zinc-700">
-                                        ? Unsure (U)
-                                    </Button>
-                                    <div className="flex-1" />
-                                    <Button onClick={() => { setSelectedIdx((i) => Math.max(i - 1, 0)); setActiveBbox(null); }} variant="outline" className="border-zinc-700">←</Button>
-                                    <Button onClick={() => { setSelectedIdx((i) => Math.min(i + 1, filtered.length - 1)); setActiveBbox(null); }} variant="outline" className="border-zinc-700">→</Button>
-                                </div>
-                                <div className="mt-2 text-xs text-zinc-500">
-                                    Shortcuts: <kbd>Y</kbd> approve · <kbd>N</kbd> reject · <kbd>U</kbd> unsure · <kbd>←</kbd> <kbd>→</kbd> navigate · click a bbox to select
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ) : (
-                        <Card className="bg-zinc-900 border-zinc-800">
-                            <CardContent className="pt-6 text-zinc-400">No images in this bucket</CardContent>
-                        </Card>
-                    )}
-                </div>
-
-                <div className="col-span-3 max-h-[calc(100vh-180px)] overflow-y-auto">
-                    <Card className="bg-zinc-900 border-zinc-800">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm">Per-query bboxes</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                            {queryStats.map((qs) => (
-                                <div key={qs.query} className="space-y-1">
-                                    <div className="flex items-center justify-between text-xs">
-                                        <div className="flex items-center gap-2">
-                                            <span className="h-3 w-3 rounded" style={{ backgroundColor: colorForQuery(qs.query) }} />
-                                            <span className="font-medium">{qs.query}</span>
-                                        </div>
-                                        <span className="text-zinc-500">
-                                            {qs.count}
-                                            {qs.approved > 0 && <span className="text-emerald-500"> ✓{qs.approved}</span>}
-                                            {qs.rejected > 0 && <span className="text-red-500"> ✗{qs.rejected}</span>}
-                                        </span>
-                                    </div>
-                                </div>
-                            ))}
-                            {activeBbox !== null && current && (() => {
-                                const bbox = current.bboxes[activeBbox];
-                                return (
-                                    <div className="border-t border-zinc-800 pt-3 mt-3">
-                                        <div className="text-xs font-bold mb-2">Selected bbox #{activeBbox + 1}</div>
-                                        <div className="text-xs text-zinc-400 mb-1">Falcon: {bbox.query}</div>
-                                        {bbox.vlm_verdict && (
-                                            <div className="text-xs mb-2">
-                                                <span className="text-zinc-500">Qwen: </span>
-                                                <span className={
-                                                    bbox.vlm_verdict === "YES" ? "text-emerald-400" :
-                                                    bbox.vlm_verdict === "NO" ? "text-red-400" :
-                                                    "text-amber-400"
-                                                }>
-                                                    {bbox.vlm_verdict}
-                                                </span>
-                                                {bbox.vlm_reasoning && (
-                                                    <div className="text-zinc-400 italic mt-1 text-[11px]">
-                                                        &ldquo;{bbox.vlm_reasoning}&rdquo;
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                        <div className="flex gap-1 mt-2">
-                                            <Button size="sm" className="bg-emerald-700 hover:bg-emerald-600 text-xs h-7" onClick={() => setBboxVerdict(activeBbox, "approved")}>✓</Button>
-                                            <Button size="sm" variant="destructive" className="text-xs h-7" onClick={() => setBboxVerdict(activeBbox, "rejected")}>✗</Button>
-                                            <Button size="sm" variant="outline" className="text-xs h-7 border-zinc-700" onClick={() => setBboxVerdict(activeBbox, "unsure")}>?</Button>
-                                        </div>
-                                    </div>
-                                );
-                            })()}
-                        </CardContent>
-                    </Card>
-                </div>
+              ))}
             </div>
-        </main>
-    );
+          </div>
+        </section>
+      )}
+
+      {/* CTA */}
+      <section className="border-t border-zinc-800 py-20">
+        <div className="mx-auto max-w-2xl px-6 text-center">
+          <h2 className="text-3xl font-bold tracking-tight">
+            Ready to build?
+          </h2>
+          <p className="mt-3 text-zinc-400">
+            No account needed. Upload images, describe your target, and get a
+            YOLO dataset in minutes.
+          </p>
+          <Link
+            href="/build"
+            className="mt-8 inline-flex h-12 items-center gap-2 rounded-lg bg-blue-600 px-8 text-base font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-500"
+          >
+            Start Building
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+            </svg>
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-zinc-800 py-8">
+        <div className="mx-auto max-w-5xl px-6 flex items-center justify-between text-sm text-zinc-500">
+          <span>data-label-factory v0.2.0</span>
+          <div className="flex gap-6">
+            <Link href="/build" className="hover:text-zinc-300">Build</Link>
+            <Link href="/train" className="hover:text-zinc-300">Train</Link>
+            <Link href="/label" className="hover:text-zinc-300">Label</Link>
+            <Link href="/canvas" className="hover:text-zinc-300">Canvas</Link>
+            <a href="https://github.com/walter-grace/data-label-factory" target="_blank" className="hover:text-zinc-300">GitHub</a>
+          </div>
+        </div>
+      </footer>
+    </main>
+  );
 }
