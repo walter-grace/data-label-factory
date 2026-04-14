@@ -9,9 +9,10 @@ tags:
   - object-detection
   - apple-silicon
   - mlx
-  - qwen
   - gemma
   - falcon-perception
+  - openrouter
+  - yolo
 pipeline_tag: image-feature-extraction
 ---
 
@@ -50,251 +51,168 @@ data_label_factory pipeline \
   --limit 50
 ```
 
-That's it. You get a YOLO dataset with `data.yaml`, ready for:
+Output: a YOLO dataset in `experiments/latest/yolo_dataset/` with `data.yaml`, ready for:
 ```bash
 yolo detect train model=yolo11n.pt data=experiments/latest/yolo_dataset/data.yaml epochs=50
 ```
 
-## v2 Provider Registry
+---
 
-7 interchangeable backends — mix and match per stage:
+## How it works
+
+The pipeline runs 5 stages automatically:
+
+| Stage | What it does | Default backend |
+|-------|-------------|-----------------|
+| **Gather** | Search DDG/Wikimedia/YouTube for images matching your queries | DuckDuckGo |
+| **Filter** | VLM looks at each image: "Is this a {target}?" YES/NO | OpenRouter Gemma 4 |
+| **Label** | Detection model draws bounding boxes on YES images | Falcon Perception / OpenRouter |
+| **Verify** | VLM checks each bbox crop: "Is this actually a {target}?" | OpenRouter Gemma 4 |
+| **Export** | Convert COCO annotations to YOLO format with train/val split | Built-in |
+
+## Provider Registry (7 backends)
+
+Mix and match per stage — swap any backend without changing your project:
 
 | Backend | Filter | Label | Verify | Runs on |
 |---------|--------|-------|--------|---------|
-| `openrouter` | Y | Y | Y | Cloud (Gemma 4, Claude, GPT-4V, etc.) |
-| `qwen` | Y | - | Y | Local Mac (2.5 GB) |
-| `gemma` | Y | - | Y | Local Mac via Expert Sniper (2.8 GB) |
-| `falcon` | - | Y | - | Local Mac via mlx-vlm (2.4 GB) |
-| `chandra` | Y | Y | Y | Local/GPU (OCR + document labeling) |
-| `wilddet3d` | - | Y | - | CUDA GPU (13K+ categories, 3D) |
-| `flywheel` | Y | Y | - | Local (synthetic data, perfect labels) |
+| `openrouter` | Y | Y | Y | Cloud (Gemma 4, Claude, GPT-4V, Llama, etc.) |
+| `qwen` | Y | - | Y | Local Mac (Qwen 2.5-VL-3B, 2.5 GB) |
+| `gemma` | Y | - | Y | Local Mac via Expert Sniper (Gemma 4 26B, 2.8 GB) |
+| `falcon` | - | Y | - | Local Mac via mlx-vlm (Falcon Perception, 2.4 GB) |
+| `chandra` | Y | Y | Y | Local/GPU (Chandra OCR 2 — documents, text, tables) |
+| `wilddet3d` | - | Y | - | CUDA GPU (WildDet3D — 13K+ categories, 3D) |
+| `flywheel` | Y | Y | - | Local (synthetic data with perfect ground truth) |
 
-**Best combo for Mac Mini (16 GB):**
-- Filter/verify: Gemma 4 E4B local (2 GB, 2.3s/img)
-- Label: Falcon Perception MLX (2.4 GB, 11s/img, pixel-accurate)
+**Best combo for Mac Mini 16 GB:**
+```bash
+data_label_factory pipeline --project P \
+  --backend gemma --label-backend falcon --verify-backend gemma
+# Gemma 4 E4B (2 GB, 2.3s/img) + Falcon (2.4 GB, 11s/img) = ~4.5 GB total
+```
 
 **Best combo for speed (cloud):**
-- All stages: OpenRouter Gemma 4 (1-2s/img, pay-per-token)
+```bash
+data_label_factory pipeline --project P \
+  --backend openrouter --label-backend openrouter
+# ~1-2s per image, pay-per-token via OpenRouter
+```
 
 ---
 
-## What you get when this finishes
+## Create your own project
 
-For our reference run on a fiber-optic-drone detector:
-
-- **1421 source images** gathered from DuckDuckGo + Wikimedia + Openverse
-- **15,355 Falcon Perception bboxes** generated via the `label` stage
-- **11,928 / 15,355 (78%)** approved by Qwen 2.5-VL in the `verify` stage
-- **Reviewed in a browser** via the canvas web UI (`web/`)
-
-Per-query agreement between Falcon and Qwen on this dataset:
-`cable spool` 88%, `quadcopter` 81%, `drone` 80%, `fiber optic spool` 57%.
-
-You can reproduce all of this from this repo by following the steps below.
-
----
-
-## 1. Install
-
+### Option A: Auto-generate from samples
 ```bash
-# Clone
-git clone https://github.com/walter-grace/data-label-factory.git
-cd data-label-factory
-
-# Install the CLI (registers `data_label_factory` on your $PATH)
-pip install -e .
-
-# (Optional) Add image-search dependencies for the `gather` stage
-pip install -e ".[gather]"
-
-# (Optional) Web UI deps — only if you want to review labels in a browser
-cd web && npm install && cd ..
+data_label_factory auto --samples ~/my-images/ --description "fire hydrants"
+# Creates projects/fire-hydrants.yaml automatically
 ```
 
-Or install straight from GitHub without cloning first:
-
-```bash
-pip install git+https://github.com/walter-grace/data-label-factory
-```
-
-The repo is also mirrored on Hugging Face at
-[`waltgrace/data-label-factory`](https://huggingface.co/waltgrace/data-label-factory).
-HF git serving doesn't play well with pip's partial-clone, so to install from
-HF use a regular clone:
-
-```bash
-git clone https://huggingface.co/waltgrace/data-label-factory
-cd data-label-factory && pip install -e .
-```
-
-The factory CLI needs Python 3.10+. The backend servers (Qwen and/or Gemma)
-are installed separately — you only need the one(s) you plan to use.
-
----
-
-## 2. Pick a backend and start it
-
-### Option A — Qwen 2.5-VL (recommended for filter/verify)
-
-```bash
-# Install mlx-vlm (Apple Silicon)
-pip install mlx-vlm
-
-# Start the OpenAI-compatible server
-python3 -m mlx_vlm.server \
-  --model mlx-community/Qwen2.5-VL-3B-Instruct-4bit \
-  --port 8291
-```
-
-Verify it's alive:
-
-```bash
-QWEN_URL=http://localhost:8291 data_label_factory status
-```
-
-### Option B — Gemma 4 + Falcon (recommended for `label`)
-
-This is the [MLX Expert Sniper](https://github.com/walter-grace/mac-code) deploy
-package. It serves Gemma 4-26B-A4B (chat / `--vision`) **and** Falcon Perception
-(`--falcon`) from the same process at port 8500. Total ~5 GB resident on a 16 GB
-Mac via SSD-streamed experts.
-
-```bash
-# Install + download model (one-time, ~13 GB)
-git clone https://github.com/walter-grace/mac-code
-cd mac-code/research/expert-sniper/distributed
-pip install -e . mlx mlx-vlm fastapi uvicorn pillow huggingface_hub python-multipart
-
-huggingface-cli download mlx-community/gemma-4-26b-a4b-it-4bit \
-  --local-dir ~/models/gemma4-source
-python3 split_gemma4.py \
-  --input  ~/models/gemma4-source \
-  --output ~/models/gemma4-stream
-
-# Launch
-python3 -m mac_tensor ui --vision --falcon \
-  --stream-dir ~/models/gemma4-stream \
-  --source-dir ~/models/gemma4-source \
-  --port 8500
-```
-
-Verify:
-
-```bash
-GEMMA_URL=http://localhost:8500 data_label_factory status
-```
-
-You can run **both** servers at the same time. The factory CLI will use whichever
-backend you select per command via `--backend qwen|gemma`.
-
----
-
-## 3. Define a project
-
-A project YAML is the *only* thing you need to write to onboard a new object
-class. Two examples ship in `projects/`:
-
-- [`projects/drones.yaml`](projects/drones.yaml) — fiber-optic drone detection (the original use case)
-- [`projects/stop-signs.yaml`](projects/stop-signs.yaml) — minimal smoke test
-
-Copy one and edit the four important fields:
-
+### Option B: Write a YAML
 ```yaml
-project_name:  fire-hydrants
-target_object: "fire hydrant"            # templated into all prompts as {target_object}
-data_root:     ~/data-label-factory/fire-hydrants
+project_name: fire-hydrants
+target_object: "fire hydrant"
+data_root: ~/data-label-factory/fire-hydrants
 
 buckets:
   positive/clear_view:
-    queries: ["red fire hydrant", "yellow fire hydrant", "fire hydrant on sidewalk"]
-  negative/other_street_objects:
-    queries: ["mailbox", "parking meter", "trash can"]
-  background/empty_streets:
-    queries: ["empty city street", "suburban sidewalk"]
+    queries: ["red fire hydrant", "yellow fire hydrant"]
+  negative/other_objects:
+    queries: ["mailbox", "parking meter"]
+  background/empty:
+    queries: ["empty city street"]
 
-falcon_queries:                          # what Falcon will look for during `label`
+falcon_queries:
   - "fire hydrant"
   - "red metal post"
 
 backends:
-  filter: qwen                           # default per stage; CLI --backend overrides
-  label:  gemma
-  verify: qwen
-```
-
-Inspect a project before running anything:
-
-```bash
-data_label_factory project --project projects/fire-hydrants.yaml
+  filter: openrouter
+  label: openrouter
+  verify: openrouter
 ```
 
 ---
 
-## 4. Run the pipeline
-
-The four stages can be run individually or chained:
+## CLI Commands
 
 ```bash
-PROJECT=projects/stop-signs.yaml
+# Full pipeline (gather + filter + label + verify + YOLO export)
+data_label_factory pipeline --project P --backend openrouter --label-backend openrouter
 
-# 4a. Gather — image search across buckets
-data_label_factory gather  --project $PROJECT --max-per-query 30
+# Individual stages
+data_label_factory gather   --project P --max-per-query 30
+data_label_factory filter   --project P --backend openrouter --limit 20
+data_label_factory label-v2 --project P --backend openrouter
+data_label_factory verify   --project P --backend openrouter
+data_label_factory export   --experiment latest --output yolo_dataset/
 
-# 4b. Filter — image-level YES/NO via your chosen VLM
-data_label_factory filter  --project $PROJECT --backend qwen
+# Auto-create project from samples
+data_label_factory auto --samples ~/imgs/ --description "fire hydrants"
 
-# 4c. Label — Falcon Perception bbox grounding (needs Gemma server up)
-data_label_factory label   --project $PROJECT
+# Benchmark backends or models
+data_label_factory benchmark --run --project P --backends falcon,openrouter --limit 30
+data_label_factory benchmark --models --project P --model-list "qwen,google/gemma-4-26b-a4b-it"
+data_label_factory benchmark --score experiments/latest/
 
-# 4d. Verify — per-bbox YES/NO via your chosen VLM
-#     (verify is a TODO in the generic CLI today; runpod_falcon/verify_vlm.py
-#      is the original drone-specific impl that the generic version will wrap.)
+# Check what's available
+data_label_factory providers
+data_label_factory status
 
-# OR run gather → filter end-to-end:
-data_label_factory pipeline --project $PROJECT --backend qwen
-```
+# Generate synthetic training data
+data_label_factory generate --refs ~/card-pngs/ --output synth_data --scenes 500
 
-Every command writes a timestamped folder under `experiments/` (relative to
-your current working directory) with the config, prompts, raw model answers,
-and JSON outputs. List them with:
-
-```bash
-data_label_factory list
+# MCP server for AI agents
+data_label_factory serve-mcp
 ```
 
 ---
 
-## 5. Review the labels in a browser
-
-The `web/` directory is a Next.js + HTML5 Canvas review tool. It reads your
-labeled JSON straight from R2 (or local — see `web/app/api/labels/route.ts`)
-and renders the bboxes over each image with hover, click-to-select, scroll-zoom,
-and keyboard navigation.
+## Web UI
 
 ```bash
-cd web
-PORT=3030 npm run dev
-# open http://localhost:3030/canvas
+# Start the Python API server
+python3 -m data_label_factory.serve --port 8400
+
+# Start the web UI
+cd web && npm install && PORT=3030 npm run dev
 ```
 
-Features:
-- **Drag** to pan, **scroll** to zoom around the cursor, **double-click** to reset
-- **←/→** to navigate images, **click** a bbox to select it
-- **Color coding**: per-query color, dashed red for VLM rejections, white outline for active
-- **Bucket tabs** to filter by source bucket
-- **Per-image query summary** with YES/NO counts
+| Route | What |
+|-------|------|
+| `/label` | Upload images, filter + label + ask AI with any backend |
+| `/pipeline` | Auto-research: crawl websites → screenshot → label UI elements → train YOLO |
+| `/canvas` | Review COCO-labeled datasets with bbox overlay |
+| `/canvas/live` | Live video/webcam tracker with Falcon Perception |
 
-The grid view at `http://localhost:3030/` is the older shadcn-based browser
-with thumbnail-grid + per-bbox approve/reject buttons.
+---
+
+## Optional: Local backends (Mac Mini)
+
+### Falcon Perception (bbox labeling)
+```bash
+pip install mlx mlx-vlm
+python3 falcon_server.py --model ~/models/falcon-perception-mlx --port 8501
+# Set GEMMA_URL=http://localhost:8501 when running pipeline
+```
+
+### Gemma 4 E4B (filter/verify)
+```bash
+# Download: huggingface-cli download mlx-community/gemma-4-e4b-it-4bit --local-dir ~/models/gemma4-e4b-4bit
+# Serve via Expert Sniper or mlx_vlm
+```
+
+### Qwen 2.5-VL (filter/verify)
+```bash
+pip install mlx-vlm
+python3 -m mlx_vlm.server --model mlx-community/Qwen2.5-VL-3B-Instruct-4bit --port 8291
+```
 
 ---
 
 ## Optional: GPU path via RunPod
 
-For larger runs (tens of thousands of images), there's an opt-in GPU path
-that orchestrates a RunPod pod, runs the same pipeline on it, and publishes
-the result straight to Hugging Face:
-
+For large runs (10K+ images):
 ```bash
 pip install -e ".[runpod]"
 export RUNPOD_API_KEY=rpa_xxxxxxxxxx
@@ -303,122 +221,38 @@ python3 -m data_label_factory.runpod pipeline \
     --publish-to <you>/<dataset>
 ```
 
-See [`data_label_factory/runpod/README.md`](data_label_factory/runpod/README.md)
-for the full architecture, costs (~$0.06 for the canonical 2,260-image run),
-and pod-vs-serverless trade-offs. Local Mac execution is still the default —
-runpod is just an option.
+See [`data_label_factory/runpod/README.md`](data_label_factory/runpod/README.md).
 
 ---
 
-## Optional: open-set image identification
+## Optional: Open-set identification
 
-The base pipeline produces COCO labels for training a closed-set **detector**.
-The opt-in `data_label_factory.identify` subpackage produces a CLIP retrieval
-**index** for open-set identification — given a known set of N reference images,
-identify which one a webcam frame is showing. **Use it when you have 1 image
-per class and want zero training time.**
-
+For "which of N known items am I holding?" (1 image per class, no training):
 ```bash
 pip install -e ".[identify]"
-
-# Build an index from a folder of references
 python3 -m data_label_factory.identify index --refs ~/my-cards/ --out my.npz
-
-# Optional: contrastive fine-tune for fine-grained accuracy (~5 min on M4 MPS)
-python3 -m data_label_factory.identify train --refs ~/my-cards/ --out my-proj.pt
-python3 -m data_label_factory.identify index --refs ~/my-cards/ --out my.npz --projection my-proj.pt
-
-# Self-test the index
-python3 -m data_label_factory.identify verify --index my.npz
-
-# Serve as a mac_tensor-shaped /api/falcon endpoint
 python3 -m data_label_factory.identify serve --index my.npz --refs ~/my-cards/
-# → web/canvas/live can hit it with FALCON_URL=http://localhost:8500/api/falcon
 ```
 
-Built-in **rarity / variant detection** for free — if your filenames encode a
-suffix like `_pscr`, `_scr`, `_ur`, the matched filename's suffix becomes a
-separate `rarity` field on the response. See
-[`data_label_factory/identify/README.md`](data_label_factory/identify/README.md)
-for the full blueprint and concrete examples (trading cards, album covers,
-industrial parts, plant species, …).
+See [`data_label_factory/identify/README.md`](data_label_factory/identify/README.md).
 
 ---
 
-## Configuration reference
+## Proven results
 
-### Environment variables
-
-| Var | Default | What |
-|---|---|---|
-| `QWEN_URL` | `http://localhost:8291` | Where the `mlx_vlm.server` lives |
-| `QWEN_MODEL_PATH` | `mlx-community/Qwen2.5-VL-3B-Instruct-4bit` | Model id sent in the OpenAI request |
-| `GEMMA_URL` | `http://localhost:8500` | Where `mac_tensor` lives (also serves Falcon) |
-
-Set them inline for one command, or `export` them in your shell.
-
-### CLI flags
-
-```
-data_label_factory <command> [flags]
-
-Commands:
-  status                      Check both backends are alive
-  project --project P         Print a project YAML for inspection
-  gather  --project P         Search the web for images across buckets
-  filter  --project P         Image-level YES/NO via Qwen or Gemma
-  label   --project P         Falcon Perception bbox grounding
-  pipeline --project P        gather → filter
-  list                        Show experiments
-
-Common flags:
-  --backend qwen|gemma        Pick the VLM (filter, pipeline). Overrides project YAML.
-  --limit N                   Process at most N images (smoke testing)
-  --experiment NAME           Reuse an existing experiment dir
-```
-
-### Project YAML reference
-
-See [`projects/drones.yaml`](projects/drones.yaml) for the canonical, fully
-commented example. Required fields: `project_name`, `target_object`, `buckets`,
-`falcon_queries`. Everything else has defaults.
-
----
-
-## How big is this thing?
-
-| Component | Disk | RAM (resident) |
-|---|---|---|
-| Factory CLI + Python deps | < 50 MB | negligible |
-| Qwen 2.5-VL-3B 4-bit | ~2.2 GB | ~2.5 GB |
-| Gemma 4-26B-A4B (Expert Sniper streaming) | ~13 GB on disk | ~3 GB |
-| Falcon Perception 0.6B | ~1.5 GB | ~1.5 GB |
-| Web UI dev server | ~300 MB node_modules | ~150 MB |
-| **Total (Gemma + Falcon path)** | **~17 GB** | **~5 GB** |
-
-Fits comfortably on a 16 GB Apple Silicon Mac.
-
----
-
-## Known issues
-
-1. **Gemma `/api/chat_vision` is unreliable for batch YES/NO prompts.** When the
-   chained agent doesn't see a clear reason to call Falcon, it can stall. For the
-   `filter` and `verify` stages, prefer `--backend qwen`. Gemma is rock solid for
-   the `label` stage (which uses `/api/falcon` directly).
-2. **The generic `verify` command is a TODO** — the original drone-specific
-   `runpod_falcon/verify_vlm.py` works today, the generic wrapper is a small
-   refactor still pending.
-3. **Image search hits DDG rate limits** if you run with too high `--max-per-query`.
-   30-50 per query is comfortable; beyond ~100 you'll see throttling.
+| Dataset | Images | Bboxes | Verify rate | Quality |
+|---------|--------|--------|-------------|---------|
+| Stop signs (OpenRouter) | 11 | 43 | 100% | 98% pass |
+| Stop signs (Falcon) | 11 | 64 | 72% | 56% pass |
+| Drones (Falcon + RunPod) | 1,421 | 15,355 | 78% | — |
 
 ---
 
 ## Credits
 
-- **Falcon Perception** by TII — Apache 2.0
-- **Gemma 4** by Google DeepMind — Apache 2.0
-- **Qwen 2.5-VL** by Alibaba — Apache 2.0
-- **MLX** by Apple Machine Learning Research — MIT
-- **mlx-vlm** by Prince Canuma — MIT
-- **MLX Expert Sniper** streaming engine by [walter-grace](https://github.com/walter-grace/mac-code)
+- **Falcon Perception** by TII (Apache 2.0)
+- **Gemma 4** by Google DeepMind (Apache 2.0)
+- **Qwen 2.5-VL** by Alibaba (Apache 2.0)
+- **MLX** by Apple ML Research (MIT)
+- **mlx-vlm** by Prince Canuma (MIT)
+- **OpenRouter** for cloud model access
