@@ -17,26 +17,64 @@ pipeline_tag: image-feature-extraction
 
 # data-label-factory
 
-A generic auto-labeling pipeline for vision datasets. Pick any object class in
-a YAML file, run one command, and end up with a clean COCO dataset reviewed in
-a browser. Designed to run entirely on a 16 GB Apple Silicon Mac.
+**Anyone asks for a vision model, we build it.** Give us a description and
+optionally some sample images — the factory gathers data, labels it, verifies
+quality, and exports a ready-to-train YOLO dataset.
 
 ```
-gather  →  filter  →  label  →  verify  →  review
- (DDG/   (VLM YES/   (Falcon  (VLM per-   (canvas
-  yt)     NO)         bbox)    bbox)       UI)
+"I need a stop sign detector"
+    ↓
+gather → filter → label → verify → export
+ (DDG)   (VLM)   (Falcon) (VLM)   (YOLO)
+    ↓
+best.pt  ← custom YOLO model
 ```
 
-Two interchangeable VLM backends:
+## Quick Start (3 commands)
 
-| Backend | Model | Server | Pick when |
-|---|---|---|---|
-| `qwen` | Qwen 2.5-VL-3B 4-bit | `mlx_vlm.server` | You want fast YES/NO classification (~3.5s/img on M4) |
-| `gemma` | Gemma 4-26B-A4B 4-bit | `mac_tensor` (Expert Sniper) | You want richer reasoning + grounded segmentation in one server |
+```bash
+# 1. Install
+git clone https://github.com/walter-grace/data-label-factory.git
+cd data-label-factory
+pip install .
 
-The `label` stage always uses **Falcon Perception** for bbox grounding, served
-out of `mac_tensor` alongside Gemma. Falcon doesn't depend on the VLM choice —
-it's a separate ~600 MB model.
+# 2. Set your OpenRouter API key (free tier works)
+export OPENROUTER_API_KEY=sk-or-...   # get one at https://openrouter.ai/keys
+
+# 3. Run the full pipeline
+data_label_factory pipeline \
+  --project projects/stop-signs.yaml \
+  --backend openrouter \
+  --label-backend openrouter \
+  --skip-gather \
+  --limit 50
+```
+
+That's it. You get a YOLO dataset with `data.yaml`, ready for:
+```bash
+yolo detect train model=yolo11n.pt data=experiments/latest/yolo_dataset/data.yaml epochs=50
+```
+
+## v2 Provider Registry
+
+7 interchangeable backends — mix and match per stage:
+
+| Backend | Filter | Label | Verify | Runs on |
+|---------|--------|-------|--------|---------|
+| `openrouter` | Y | Y | Y | Cloud (Gemma 4, Claude, GPT-4V, etc.) |
+| `qwen` | Y | - | Y | Local Mac (2.5 GB) |
+| `gemma` | Y | - | Y | Local Mac via Expert Sniper (2.8 GB) |
+| `falcon` | - | Y | - | Local Mac via mlx-vlm (2.4 GB) |
+| `chandra` | Y | Y | Y | Local/GPU (OCR + document labeling) |
+| `wilddet3d` | - | Y | - | CUDA GPU (13K+ categories, 3D) |
+| `flywheel` | Y | Y | - | Local (synthetic data, perfect labels) |
+
+**Best combo for Mac Mini (16 GB):**
+- Filter/verify: Gemma 4 E4B local (2 GB, 2.3s/img)
+- Label: Falcon Perception MLX (2.4 GB, 11s/img, pixel-accurate)
+
+**Best combo for speed (cloud):**
+- All stages: OpenRouter Gemma 4 (1-2s/img, pay-per-token)
 
 ---
 
