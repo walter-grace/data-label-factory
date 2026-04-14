@@ -1000,12 +1000,24 @@ def cmd_pipeline(args):
         flag = "ok" if rate >= 0.95 else "WARN"
         print(f"    {rule:20s} {rate:6.1%}  {flag}")
 
+    # ── 5. EXPORT to YOLO ──
+    print("\n" + "=" * 50)
+    print(">>> [5/5] EXPORT → YOLO format")
+    print("=" * 50)
+
+    from .export import coco_to_yolo
+    yolo_dir = os.path.join(exp, "yolo_dataset")
+    yolo_summary = coco_to_yolo(coco_path, img_root, yolo_dir)
+
     print(f"\n{'=' * 70}")
     print(f"PIPELINE DONE — {exp}")
-    print(f"  COCO: {coco_path}")
+    print(f"  COCO:  {coco_path}")
+    print(f"  YOLO:  {yolo_summary['data_yaml']}")
     print(f"  {len(coco['images'])} images, {n_total_dets} bboxes, "
           f"filter={counts['YES']}/{len(images)} YES, "
           f"verify={v_counts.get('YES','?')}/{len(verify_results) if verify_results else '?'} approved")
+    print(f"\n  To train:")
+    print(f"    yolo detect train model=yolo11n.pt data={yolo_summary['data_yaml']} epochs=50 imgsz=640")
     print(f"{'=' * 70}")
 
 
@@ -1040,6 +1052,21 @@ def cmd_providers(args):
         except Exception as e:
             print(f"\n  {pname}")
             print(f"    error: {e}")
+
+
+def cmd_export(args):
+    """Convert COCO to YOLO format."""
+    from .export import main as export_main
+    argv = []
+    if args.coco:
+        argv += ["--coco", args.coco]
+    if args.experiment:
+        argv += ["--experiment", args.experiment]
+    if args.images:
+        argv += ["--images", args.images]
+    argv += ["--output", args.output]
+    argv += ["--val-split", str(args.val_split)]
+    export_main(argv)
 
 
 def cmd_auto(args):
@@ -1215,6 +1242,13 @@ def main():
 
     sub.add_parser("serve-mcp", help="Run as MCP server for AI agents (stdio)")
 
+    se = sub.add_parser("export", help="Convert COCO annotations to YOLO training format")
+    se.add_argument("--coco", help="Path to COCO JSON file")
+    se.add_argument("--experiment", default="latest", help="Experiment dir (auto-finds COCO)")
+    se.add_argument("--images", help="Image root directory")
+    se.add_argument("--output", default="yolo_dataset", help="Output directory")
+    se.add_argument("--val-split", type=float, default=0.1)
+
     sg_syn = sub.add_parser("generate", help="Generate synthetic training data (flywheel)")
     sg_syn.add_argument("--refs", required=True,
                         help="Directory of reference images (PNGs with alpha preferred)")
@@ -1236,6 +1270,7 @@ def main():
         "list": cmd_list,
         "providers": cmd_providers,
         "benchmark": cmd_benchmark,
+        "export": cmd_export,
         "auto": cmd_auto,
         "serve-mcp": cmd_serve_mcp,
         "generate": cmd_generate,
