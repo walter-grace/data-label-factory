@@ -460,8 +460,8 @@ export default function DeployPage() {
             >
               Deploy
             </Link>
-            <Link href="/pipeline" className="transition hover:text-white">
-              Research
+            <Link href="/pricing" className="transition hover:text-white">
+              Pricing
             </Link>
             <a
               href="https://github.com/walter-grace/data-label-factory"
@@ -1002,10 +1002,10 @@ export default function DeployPage() {
               Train
             </Link>
             <Link
-              href="/pipeline"
+              href="/pricing"
               className="transition hover:text-zinc-300"
             >
-              Research
+              Pricing
             </Link>
             <Link
               href="/label"

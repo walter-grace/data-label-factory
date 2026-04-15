@@ -406,8 +406,9 @@ export default function Home() {
           <div className="flex gap-6">
             <Link href="/build" className="transition hover:text-zinc-300">Build</Link>
             <Link href="/train" className="transition hover:text-zinc-300">Train</Link>
-            <Link href="/pipeline" className="transition hover:text-zinc-300">Research</Link>
             <Link href="/label" className="transition hover:text-zinc-300">Label</Link>
+            <Link href="/deploy" className="transition hover:text-zinc-300">Deploy</Link>
+            <Link href="/pricing" className="transition hover:text-zinc-300">Pricing</Link>
             <a href="https://github.com/walter-grace/data-label-factory" target="_blank" className="transition hover:text-zinc-300">GitHub</a>
           </div>
         </div>

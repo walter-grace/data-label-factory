@@ -49,7 +49,10 @@ export default function PricingPage() {
           <div className="hidden items-center gap-8 text-sm text-zinc-400 sm:flex">
             <Link href="/build" className="transition hover:text-white">Build</Link>
             <Link href="/train" className="transition hover:text-white">Train</Link>
+            <Link href="/label" className="transition hover:text-white">Label</Link>
+            <Link href="/deploy" className="transition hover:text-white">Deploy</Link>
             <Link href="/pricing" className="text-white">Pricing</Link>
+            <a href="https://github.com/walter-grace/data-label-factory" target="_blank" className="transition hover:text-white">GitHub</a>
           </div>
           {isSignedIn ? (
             <Link
@@ -163,6 +166,23 @@ export default function PricingPage() {
           </p>
         </div>
       </div>
+
+      {/* Footer */}
+      <footer className="border-t border-zinc-800/50 py-8 mt-16">
+        <div className="mx-auto max-w-5xl px-6 flex flex-col items-center justify-between gap-4 text-sm text-zinc-500 sm:flex-row">
+          <div className="flex items-center gap-2">
+            <div className="flex h-5 w-5 items-center justify-center rounded bg-blue-600 text-[8px] font-black text-white">DLF</div>
+            <span>Data Label Factory</span>
+          </div>
+          <div className="flex gap-6">
+            <Link href="/build" className="transition hover:text-zinc-300">Build</Link>
+            <Link href="/train" className="transition hover:text-zinc-300">Train</Link>
+            <Link href="/deploy" className="transition hover:text-zinc-300">Deploy</Link>
+            <Link href="/label" className="transition hover:text-zinc-300">Label</Link>
+            <a href="https://github.com/walter-grace/data-label-factory" target="_blank" className="transition hover:text-zinc-300">GitHub</a>
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }
