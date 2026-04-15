@@ -472,6 +472,25 @@ export default function PlayPage() {
     setAnswers((prev) => [...prev, { challengeId: challenge.id, userAnswer, correct, timeMs, wasHoneypot: challenge.isHoneypot }]);
     setScore((prev) => prev + pointsEarned);
     setStreak(newStreak);
+
+    // Submit to reward pool for GRPO training
+    fetch("/api/rewards", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        image_url: challenge.imageUrl,
+        target: challenge.target,
+        label: userAnswer,
+        reward: correct ? 3 : -3,
+        source: "human:web",
+        source_type: "human",
+        trust_score: trustScore,
+        is_honeypot: challenge.isHoneypot,
+        honeypot_correct: challenge.isHoneypot ? correct : undefined,
+        response_time_ms: timeMs,
+        streak: newStreak,
+      }),
+    }).catch(() => {});
     if (newStreak > bestStreak) setBestStreak(newStreak);
 
     // Visual feedback

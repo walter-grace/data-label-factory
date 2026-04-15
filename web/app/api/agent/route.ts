@@ -181,6 +181,29 @@ export async function POST(req: NextRequest) {
 
     const accepted = agent.trustScore >= 50;
 
+    // Submit to reward pool for GRPO training
+    try {
+      const rewardPayload = {
+        image_url: challenge.imageUrl,
+        target: challenge.target,
+        label: userAnswer,
+        reward: correct ? 3 : -3,
+        source: `agent:${agentId}`,
+        source_type: "agent",
+        trust_score: agent.trustScore,
+        is_honeypot: wasHoneypot,
+        honeypot_correct: wasHoneypot ? correct : undefined,
+        response_time_ms: Date.now() - challenge.issuedAt,
+        streak: agent.correctLabels,
+      };
+      // Fire and forget — don't block the response
+      fetch(`${req.nextUrl.origin}/api/rewards`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(rewardPayload),
+      }).catch(() => {});
+    } catch {}
+
     return NextResponse.json({
       correct,
       was_honeypot: wasHoneypot,
