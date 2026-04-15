@@ -386,7 +386,7 @@ export default function BuildPage() {
       <header className="border-b border-zinc-800 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/" className="text-zinc-400 hover:text-zinc-200 transition">
+            <Link href="/" className="text-zinc-400 hover:text-zinc-200 transition" aria-label="Back to home">
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
               </svg>
@@ -436,7 +436,7 @@ export default function BuildPage() {
             {/* Left: Config */}
             <div className="space-y-6">
               {/* Target */}
-              <Card className="bg-zinc-900 border-zinc-800">
+              <Card className="bg-zinc-900/30 border-zinc-800">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base">What do you want to detect?</CardTitle>
                 </CardHeader>
@@ -452,14 +452,14 @@ export default function BuildPage() {
               </Card>
 
               {/* Mode Presets */}
-              <Card className="bg-zinc-900 border-zinc-800">
+              <Card className="bg-zinc-900/30 border-zinc-800">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base">Pipeline Mode</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <button
                     onClick={() => { setBackend("openrouter"); setLabelBackend("falcon"); }}
-                    className={`w-full rounded-lg border p-3 text-left transition ${
+                    className={`w-full rounded-xl border p-3 text-left transition ${
                       backend === "openrouter" && labelBackend === "falcon"
                         ? "border-blue-500 bg-blue-950/30"
                         : "border-zinc-700 bg-zinc-800/50 hover:border-zinc-600"
@@ -479,7 +479,7 @@ export default function BuildPage() {
 
                   <button
                     onClick={() => { setBackend("openrouter"); setLabelBackend("openrouter"); }}
-                    className={`w-full rounded-lg border p-3 text-left transition ${
+                    className={`w-full rounded-xl border p-3 text-left transition ${
                       backend === "openrouter" && labelBackend === "openrouter"
                         ? "border-blue-500 bg-blue-950/30"
                         : "border-zinc-700 bg-zinc-800/50 hover:border-zinc-600"
@@ -487,7 +487,7 @@ export default function BuildPage() {
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-semibold">Fast Mode</span>
-                      <Badge variant="outline" className="border-emerald-700 text-emerald-400 text-[10px]">Fastest</Badge>
+                      <Badge variant="outline" className="border-blue-700 text-blue-400 text-[10px]">Fastest</Badge>
                     </div>
                     <p className="text-[11px] text-zinc-400 mt-1">
                       Gemma 4 does everything — filter, label, verify
@@ -498,11 +498,14 @@ export default function BuildPage() {
                   </button>
 
                   {/* Advanced toggle */}
-                  <details className="pt-1">
-                    <summary className="text-[11px] text-zinc-500 cursor-pointer hover:text-zinc-300">
+                  <details className="group pt-1">
+                    <summary className="flex items-center gap-1.5 text-[11px] text-zinc-500 cursor-pointer hover:text-zinc-300 list-none [&::-webkit-details-marker]:hidden">
+                      <svg className="h-3 w-3 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                      </svg>
                       Advanced — pick backends manually
                     </summary>
-                    <div className="space-y-2 pt-2">
+                    <div className="space-y-2 pt-2 pl-[18px]">
                       <div>
                         <label className="text-xs text-zinc-400 mb-1 block">Filter + Verify</label>
                         <select
@@ -546,7 +549,7 @@ export default function BuildPage() {
               </Card>
 
               {/* Import URL */}
-              <Card className="bg-zinc-900 border-zinc-800">
+              <Card className="bg-zinc-900/30 border-zinc-800">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base">Import from URL</CardTitle>
                 </CardHeader>
@@ -646,7 +649,7 @@ export default function BuildPage() {
                 <Button
                   onClick={runPipeline}
                   disabled={!target.trim() || images.length === 0}
-                  className="bg-blue-600 hover:bg-blue-500 px-8 h-11 text-base font-semibold shadow-lg shadow-blue-600/25"
+                  className="bg-blue-600 hover:bg-blue-500 rounded-xl px-8 h-11 text-base font-semibold shadow-lg shadow-blue-600/25"
                 >
                   Run Pipeline
                   <svg className="ml-2 h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -770,31 +773,31 @@ export default function BuildPage() {
           <div className="space-y-6">
             {/* Summary */}
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-              <Card className="bg-zinc-900 border-zinc-800">
+              <Card className="bg-zinc-900/30 border-zinc-800">
                 <CardContent className="pt-4 pb-4 text-center">
                   <div className="text-2xl font-bold">{images.length}</div>
                   <div className="text-xs text-zinc-500">Total Images</div>
                 </CardContent>
               </Card>
-              <Card className="bg-zinc-900 border-zinc-800">
+              <Card className="bg-zinc-900/30 border-zinc-800">
                 <CardContent className="pt-4 pb-4 text-center">
                   <div className="text-2xl font-bold text-emerald-400">{yesCount}</div>
                   <div className="text-xs text-zinc-500">Matches</div>
                 </CardContent>
               </Card>
-              <Card className="bg-zinc-900 border-zinc-800">
+              <Card className="bg-zinc-900/30 border-zinc-800">
                 <CardContent className="pt-4 pb-4 text-center">
                   <div className="text-2xl font-bold text-red-400">{noCount}</div>
                   <div className="text-xs text-zinc-500">Rejected</div>
                 </CardContent>
               </Card>
-              <Card className="bg-zinc-900 border-zinc-800">
+              <Card className="bg-zinc-900/30 border-zinc-800">
                 <CardContent className="pt-4 pb-4 text-center">
                   <div className="text-2xl font-bold text-blue-400">{totalDetections}</div>
                   <div className="text-xs text-zinc-500">Bounding Boxes</div>
                 </CardContent>
               </Card>
-              <Card className="bg-zinc-900 border-zinc-800">
+              <Card className="bg-zinc-900/30 border-zinc-800">
                 <CardContent className="pt-4 pb-4 text-center">
                   <div className="text-2xl font-bold text-amber-400">{errorCount}</div>
                   <div className="text-xs text-zinc-500">Errors</div>
@@ -854,7 +857,7 @@ export default function BuildPage() {
               {/* Selected image detail */}
               <div className="lg:col-span-2">
                 {images[selectedImg] && (
-                  <Card className="bg-zinc-900 border-zinc-800">
+                  <Card className="bg-zinc-900/30 border-zinc-800">
                     <CardContent className="pt-6">
                       <div className="relative">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -989,7 +992,7 @@ export default function BuildPage() {
               <Button
                 onClick={saveToR2}
                 disabled={totalDetections === 0 || saving || !!savedJobId}
-                className="bg-cyan-600 hover:bg-cyan-500"
+                className="bg-blue-600 hover:bg-blue-500"
               >
                 {saving ? (
                   <>
@@ -1070,6 +1073,23 @@ export default function BuildPage() {
           </div>
         )}
       </div>
+
+      {/* Footer */}
+      <footer className="mt-auto border-t border-zinc-800/50 py-8">
+        <div className="mx-auto max-w-5xl px-6 flex flex-col items-center justify-between gap-4 text-sm text-zinc-500 sm:flex-row">
+          <div className="flex items-center gap-2">
+            <div className="flex h-5 w-5 items-center justify-center rounded bg-blue-600 text-[8px] font-black text-white">
+              DLF
+            </div>
+            <span>Data Label Factory</span>
+          </div>
+          <div className="flex gap-6">
+            <Link href="/" className="transition hover:text-zinc-300">Home</Link>
+            <Link href="/train" className="transition hover:text-zinc-300">Train</Link>
+            <a href="https://github.com/walter-grace/data-label-factory" target="_blank" className="transition hover:text-zinc-300">GitHub</a>
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }

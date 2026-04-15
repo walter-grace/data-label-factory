@@ -164,7 +164,7 @@ export default function TrainPage() {
       <header className="border-b border-zinc-800 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/" className="text-zinc-400 hover:text-zinc-200 transition">
+            <Link href="/" className="text-zinc-400 hover:text-zinc-200 transition" aria-label="Back to home">
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
               </svg>
@@ -186,7 +186,7 @@ export default function TrainPage() {
         {/* Upload section */}
         <div className="grid gap-6 md:grid-cols-2">
           {/* COCO JSON */}
-          <Card className="bg-zinc-900 border-zinc-800">
+          <Card className="bg-zinc-900/30 border-zinc-800">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">COCO Annotations</CardTitle>
               <p className="text-[11px] text-zinc-500">
@@ -219,7 +219,7 @@ export default function TrainPage() {
           </Card>
 
           {/* Images */}
-          <Card className="bg-zinc-900 border-zinc-800">
+          <Card className="bg-zinc-900/30 border-zinc-800">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Training Images</CardTitle>
               <p className="text-[11px] text-zinc-500">
@@ -256,7 +256,7 @@ export default function TrainPage() {
         </div>
 
         {/* Config */}
-        <Card className="bg-zinc-900 border-zinc-800">
+        <Card className="bg-zinc-900/30 border-zinc-800">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Training Config</CardTitle>
           </CardHeader>
@@ -317,7 +317,7 @@ export default function TrainPage() {
           <Button
             onClick={startTraining}
             disabled={!cocoFile || imageFiles.length === 0 || (job?.status === "training") || (job?.status === "uploading")}
-            className="bg-blue-600 hover:bg-blue-500 px-8 h-11 text-base font-semibold shadow-lg shadow-blue-600/25"
+            className="bg-blue-600 hover:bg-blue-500 rounded-xl px-8 h-11 text-base font-semibold shadow-lg shadow-blue-600/25"
           >
             {job?.status === "uploading" || job?.status === "training" ? (
               <>
@@ -340,7 +340,7 @@ export default function TrainPage() {
           <Card className={`border ${
             job.status === "complete" ? "bg-emerald-950/20 border-emerald-700" :
             job.status === "error" ? "bg-red-950/20 border-red-700" :
-            "bg-zinc-900 border-zinc-800"
+            "bg-zinc-900/30 border-zinc-800"
           }`}>
             <CardContent className="pt-6">
               {/* Status bar */}
@@ -451,18 +451,20 @@ export default function TrainPage() {
         )}
 
         {/* How it works */}
-        <Card className="bg-zinc-900/50 border-zinc-800">
+        <Card className="bg-zinc-900/30 border-zinc-800">
           <CardContent className="pt-6">
-            <h3 className="font-semibold mb-3">How training works</h3>
-            <div className="grid grid-cols-4 gap-4 text-center text-sm">
+            <h3 className="font-semibold mb-4">How training works</h3>
+            <div className="relative grid grid-cols-4 gap-4 text-center text-sm">
+              {/* Connecting line */}
+              <div className="absolute top-4 left-[15%] right-[15%] hidden h-px bg-gradient-to-r from-transparent via-zinc-700 to-transparent sm:block" />
               {[
                 { step: "1", title: "Upload", desc: "COCO JSON + images from the Build page" },
                 { step: "2", title: "Convert", desc: "COCO to YOLO format with train/val split" },
                 { step: "3", title: "Train", desc: "YOLO11 fine-tuning on RunPod GPU" },
                 { step: "4", title: "Download", desc: "Get your custom best.pt model" },
               ].map((s) => (
-                <div key={s.step}>
-                  <div className="mx-auto flex h-8 w-8 items-center justify-center rounded-full bg-blue-600/20 text-blue-400 text-sm font-bold mb-2">
+                <div key={s.step} className="relative">
+                  <div className="mx-auto flex h-8 w-8 items-center justify-center rounded-full bg-blue-600/20 text-blue-400 text-sm font-bold mb-2 relative z-10">
                     {s.step}
                   </div>
                   <div className="font-medium">{s.title}</div>
@@ -473,6 +475,23 @@ export default function TrainPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Footer */}
+      <footer className="mt-auto border-t border-zinc-800/50 py-8">
+        <div className="mx-auto max-w-5xl px-6 flex flex-col items-center justify-between gap-4 text-sm text-zinc-500 sm:flex-row">
+          <div className="flex items-center gap-2">
+            <div className="flex h-5 w-5 items-center justify-center rounded bg-blue-600 text-[8px] font-black text-white">
+              DLF
+            </div>
+            <span>Data Label Factory</span>
+          </div>
+          <div className="flex gap-6">
+            <Link href="/" className="transition hover:text-zinc-300">Home</Link>
+            <Link href="/build" className="transition hover:text-zinc-300">Build</Link>
+            <a href="https://github.com/walter-grace/data-label-factory" target="_blank" className="transition hover:text-zinc-300">GitHub</a>
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }
