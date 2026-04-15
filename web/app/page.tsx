@@ -6,11 +6,60 @@ import { useRouter } from "next/navigation";
 import HeroAnimation from "@/components/HeroAnimation";
 import ScrollReveal from "@/components/ScrollReveal";
 
+const TYPING_EXAMPLES = [
+  "stop signs",
+  "fire hydrants",
+  "drones on a battlefield",
+  "playing cards",
+  "license plates",
+  "hard hats on workers",
+  "ripe tomatoes",
+  "potholes in roads",
+  "solar panels",
+  "birds in flight",
+];
+
+function useTypingPlaceholder() {
+  const [placeholder, setPlaceholder] = useState("");
+  const [exampleIdx, setExampleIdx] = useState(0);
+  const [charIdx, setCharIdx] = useState(0);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    const example = TYPING_EXAMPLES[exampleIdx];
+
+    if (!deleting) {
+      if (charIdx < example.length) {
+        const timer = setTimeout(() => setCharIdx((c) => c + 1), 60 + Math.random() * 40);
+        return () => clearTimeout(timer);
+      } else {
+        const timer = setTimeout(() => setDeleting(true), 2000);
+        return () => clearTimeout(timer);
+      }
+    } else {
+      if (charIdx > 0) {
+        const timer = setTimeout(() => setCharIdx((c) => c - 1), 30);
+        return () => clearTimeout(timer);
+      } else {
+        setDeleting(false);
+        setExampleIdx((i) => (i + 1) % TYPING_EXAMPLES.length);
+      }
+    }
+  }, [charIdx, deleting, exampleIdx]);
+
+  useEffect(() => {
+    setPlaceholder(TYPING_EXAMPLES[exampleIdx].slice(0, charIdx));
+  }, [charIdx, exampleIdx]);
+
+  return placeholder;
+}
+
 export default function Home() {
   const [providers, setProviders] = useState<any[]>([]);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const typingPlaceholder = useTypingPlaceholder();
 
   useEffect(() => {
     fetch("/api/dlf?path=/api/providers")
@@ -91,7 +140,7 @@ export default function Home() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleGo()}
-              placeholder="What do you want to detect?"
+              placeholder={query ? "" : typingPlaceholder || "What do you want to detect?"}
               className="h-14 w-full rounded-2xl border border-zinc-700/50 bg-zinc-900/80 px-5 text-base text-zinc-100 placeholder:text-zinc-500 shadow-lg shadow-black/20 backdrop-blur-sm focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30 transition"
             />
             <div className="mt-4 flex items-center justify-center gap-3 text-[13px] text-zinc-500">
