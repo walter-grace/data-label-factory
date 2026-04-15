@@ -1005,7 +1005,7 @@ export default function BuildPage() {
               <Button
                 onClick={trainModel}
                 disabled={totalDetections === 0 || training || !!trainResult}
-                className="bg-orange-600 hover:bg-orange-500"
+                className="bg-blue-600 hover:bg-blue-500"
               >
                 {training ? (
                   <>
@@ -1024,7 +1024,7 @@ export default function BuildPage() {
             {trainResult && (
               <Card className={`border ${
                 trainResult.status === "complete"
-                  ? "bg-orange-950/30 border-orange-700"
+                  ? "bg-blue-950/30 border-blue-700"
                   : trainResult.status === "dataset_ready"
                   ? "bg-zinc-900 border-zinc-700"
                   : "bg-red-950/30 border-red-700"
@@ -1033,7 +1033,7 @@ export default function BuildPage() {
                   {trainResult.status === "complete" && (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-orange-400">Model trained!</span>
+                        <span className="font-semibold text-blue-400">Model trained!</span>
                         <span className="text-sm text-zinc-400">{trainResult.elapsed}s</span>
                       </div>
                       <p className="text-sm text-zinc-400">
@@ -1046,7 +1046,7 @@ export default function BuildPage() {
                             "_blank"
                           );
                         }}
-                        className="bg-orange-600 hover:bg-orange-500"
+                        className="bg-blue-600 hover:bg-blue-500"
                       >
                         Download best.pt
                       </Button>

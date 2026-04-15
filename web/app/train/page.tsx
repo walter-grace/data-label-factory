@@ -151,7 +151,7 @@ export default function TrainPage() {
     idle: { color: "bg-zinc-600", label: "Ready" },
     uploading: { color: "bg-blue-500 animate-pulse", label: "Uploading dataset..." },
     provisioning: { color: "bg-yellow-500 animate-pulse", label: "Spinning up GPU..." },
-    training: { color: "bg-orange-500 animate-pulse", label: "Training YOLO model..." },
+    training: { color: "bg-blue-500 animate-pulse", label: "Training YOLO model..." },
     complete: { color: "bg-emerald-500", label: "Complete" },
     error: { color: "bg-red-500", label: "Error" },
   };
@@ -176,8 +176,8 @@ export default function TrainPage() {
               </p>
             </div>
           </div>
-          <Link href="/build" className="text-sm text-blue-400 hover:text-blue-300">
-            Need to label first? Go to Build
+          <Link href="/build" className="text-sm text-blue-400 hover:text-blue-300 transition">
+            Need to label first? Go to Build &rarr;
           </Link>
         </div>
       </header>
@@ -317,7 +317,7 @@ export default function TrainPage() {
           <Button
             onClick={startTraining}
             disabled={!cocoFile || imageFiles.length === 0 || (job?.status === "training") || (job?.status === "uploading")}
-            className="bg-orange-600 hover:bg-orange-500 px-8 h-11 text-base font-semibold shadow-lg shadow-orange-600/25"
+            className="bg-blue-600 hover:bg-blue-500 px-8 h-11 text-base font-semibold shadow-lg shadow-blue-600/25"
           >
             {job?.status === "uploading" || job?.status === "training" ? (
               <>
@@ -364,12 +364,12 @@ export default function TrainPage() {
                     <div key={stage} className="text-center">
                       <div className={`h-1.5 rounded-full mb-2 ${
                         isDone ? "bg-emerald-500" :
-                        isCurrent ? "bg-orange-500 animate-pulse" :
+                        isCurrent ? "bg-blue-500 animate-pulse" :
                         "bg-zinc-700"
                       }`} />
                       <span className={`text-[11px] ${
                         isDone ? "text-emerald-400" :
-                        isCurrent ? "text-orange-400" :
+                        isCurrent ? "text-blue-400" :
                         "text-zinc-500"
                       }`}>
                         {["Upload", "GPU", "Train", "Done"][i]}
@@ -388,7 +388,7 @@ export default function TrainPage() {
                   </div>
                   <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-orange-500 transition-all"
+                      className="h-full rounded-full bg-blue-500 transition-all"
                       style={{ width: `${(job.progress.epoch / job.progress.total) * 100}%` }}
                     />
                   </div>
@@ -420,7 +420,7 @@ export default function TrainPage() {
                 <div className="mt-6 flex gap-3">
                   <Button
                     onClick={() => window.open(job.modelUrl, "_blank")}
-                    className="bg-emerald-600 hover:bg-emerald-500 px-6"
+                    className="bg-blue-600 hover:bg-blue-500 px-6"
                   >
                     Download best.pt
                     <svg className="ml-2 h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -462,7 +462,7 @@ export default function TrainPage() {
                 { step: "4", title: "Download", desc: "Get your custom best.pt model" },
               ].map((s) => (
                 <div key={s.step}>
-                  <div className="mx-auto flex h-8 w-8 items-center justify-center rounded-full bg-orange-600/20 text-orange-400 text-sm font-bold mb-2">
+                  <div className="mx-auto flex h-8 w-8 items-center justify-center rounded-full bg-blue-600/20 text-blue-400 text-sm font-bold mb-2">
                     {s.step}
                   </div>
                   <div className="font-medium">{s.title}</div>

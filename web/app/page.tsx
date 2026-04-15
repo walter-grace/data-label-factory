@@ -1,10 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
+import HeroAnimation from "@/components/HeroAnimation";
+import ScrollReveal from "@/components/ScrollReveal";
 
 export default function Home() {
   const [providers, setProviders] = useState<any[]>([]);
+  const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
   useEffect(() => {
     fetch("/api/dlf?path=/api/providers")
@@ -15,213 +21,355 @@ export default function Home() {
 
   const alive = providers.filter((p) => p.alive);
 
+  const handleGo = () => {
+    if (query.trim()) {
+      router.push(`/build?target=${encodeURIComponent(query.trim())}`);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
+      {/* Nav */}
+      <nav className="fixed top-0 z-50 w-full border-b border-white/5 bg-zinc-950/80 backdrop-blur-xl">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-xs font-black">
+              DLF
+            </div>
+            <span className="text-sm font-semibold tracking-tight">Data Label Factory</span>
+          </Link>
+          <div className="hidden items-center gap-8 text-sm text-zinc-400 sm:flex">
+            <Link href="/build" className="transition hover:text-white">Build</Link>
+            <Link href="/train" className="transition hover:text-white">Train</Link>
+            <Link href="/pipeline" className="transition hover:text-white">Research</Link>
+            <a href="https://github.com/walter-grace/data-label-factory" target="_blank" className="transition hover:text-white">GitHub</a>
+          </div>
+          <Link
+            href="/build"
+            className="rounded-lg bg-white px-4 py-1.5 text-sm font-medium text-zinc-900 transition hover:bg-zinc-200"
+          >
+            Get Started
+          </Link>
+        </div>
+      </nav>
+
       {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-blue-950/30 via-zinc-950 to-zinc-950" />
-        <div className="relative mx-auto max-w-4xl px-6 py-24 text-center">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900 px-4 py-1.5 text-sm text-zinc-300">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+      <section className="relative overflow-hidden pt-14">
+        {/* Background labeling animation */}
+        <HeroAnimation />
+        {/* Gradient orb */}
+        <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 h-[600px] w-[900px] rounded-full bg-blue-600/8 blur-[120px]" />
+
+        <div className="relative mx-auto max-w-3xl px-6 pt-20 pb-12 text-center sm:pt-28 sm:pb-16">
+          {/* Status pill */}
+          <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900/80 px-4 py-1.5 text-[13px] text-zinc-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
             {alive.length > 0
               ? `${alive.length} AI backends online`
-              : "Connecting..."}
+              : "Connecting to backends..."}
           </div>
 
-          <h1 className="text-5xl font-bold tracking-tight sm:text-6xl">
-            Tell us what to detect.
+          <h1 className="relative text-4xl font-bold tracking-tight sm:text-6xl sm:leading-[1.1]">
+            {/* Label on the headline */}
+            <div className="pointer-events-none absolute -inset-4 rounded-lg border border-blue-500/[0.08]">
+              <div className="absolute -top-5 left-1 rounded-sm bg-blue-500/5 px-1.5 py-[2px] text-[8px] font-mono text-blue-400/20 font-normal">h1.heading</div>
+              <div className="absolute top-0 left-0 h-2 w-2 border-t border-l border-blue-500/15" />
+              <div className="absolute top-0 right-0 h-2 w-2 border-t border-r border-blue-500/15" />
+              <div className="absolute bottom-0 left-0 h-2 w-2 border-b border-l border-blue-500/15" />
+              <div className="absolute bottom-0 right-0 h-2 w-2 border-b border-r border-blue-500/15" />
+            </div>
+            Train your agent&apos;s
             <br />
-            <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-              We build the model.
+            <span className="bg-gradient-to-r from-blue-400 via-blue-300 to-cyan-400 bg-clip-text text-transparent">
+              vision.
             </span>
           </h1>
 
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-zinc-400">
-            Upload images or describe what you need — our AI pipeline gathers
-            data, labels bounding boxes, verifies quality, and exports a
-            ready-to-train YOLO dataset. From idea to custom vision model in
-            minutes.
+          <p className="mx-auto mt-5 max-w-xl text-base text-zinc-400 sm:text-lg">
+            Describe what you need to detect. Our AI pipeline builds a custom
+            YOLO model — from text prompt to trained weights in minutes.
           </p>
 
-          <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <Link
-              href="/build"
-              className="inline-flex h-12 items-center gap-2 rounded-lg bg-blue-600 px-8 text-base font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-500"
-            >
-              Build a Dataset
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-              </svg>
-            </Link>
-            <Link
-              href="/label"
-              className="inline-flex h-12 items-center gap-2 rounded-lg border border-zinc-700 px-8 text-base font-medium text-zinc-300 transition hover:bg-zinc-800"
-            >
-              Label Images
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section className="border-t border-zinc-800 py-20">
-        <div className="mx-auto max-w-5xl px-6">
-          <h2 className="text-center text-3xl font-bold tracking-tight">
-            How it works
-          </h2>
-          <p className="mt-3 text-center text-zinc-400">
-            Five stages, fully automated. You just say what you need.
-          </p>
-
-          <div className="mt-14 grid gap-6 sm:grid-cols-5">
-            {[
-              { icon: "1", title: "Describe", desc: "Type what you want to detect or upload sample images" },
-              { icon: "2", title: "Gather", desc: "We search the web for matching images automatically" },
-              { icon: "3", title: "Filter", desc: "AI vision model checks each image — is this your target?" },
-              { icon: "4", title: "Label", desc: "Falcon Perception draws precise bounding boxes" },
-              { icon: "5", title: "Export", desc: "YOLO dataset ready to train — download and go" },
-            ].map((step, i) => (
-              <div key={i} className="relative text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-600/20 text-blue-400 text-lg font-bold">
-                  {step.icon}
-                </div>
-                {i < 4 && (
-                  <div className="absolute top-6 left-[calc(50%+28px)] hidden h-px w-[calc(100%-56px)] bg-zinc-700 sm:block" />
-                )}
-                <h3 className="mt-4 font-semibold">{step.title}</h3>
-                <p className="mt-2 text-sm text-zinc-400">{step.desc}</p>
+          {/* Input box — the product IS the input */}
+          <div className="mx-auto mt-10 max-w-xl relative">
+            {/* Label on input */}
+            <div className="pointer-events-none absolute -inset-2 rounded-2xl border border-emerald-500/10 z-10">
+              <div className="absolute -top-5 left-2 rounded-sm bg-emerald-500/5 px-1.5 py-[2px] text-[8px] font-mono text-emerald-400/25 flex items-center gap-1">
+                <svg className="h-2 w-2" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                text_input
               </div>
-            ))}
+              <div className="absolute top-0 left-0 h-1.5 w-1.5 border-t border-l border-emerald-500/20" />
+              <div className="absolute top-0 right-0 h-1.5 w-1.5 border-t border-r border-emerald-500/20" />
+              <div className="absolute bottom-0 left-0 h-1.5 w-1.5 border-b border-l border-emerald-500/20" />
+              <div className="absolute bottom-0 right-0 h-1.5 w-1.5 border-b border-r border-emerald-500/20" />
+            </div>
+            <div className="relative">
+              <input
+                ref={inputRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleGo()}
+                placeholder="What do you want to detect?"
+                className="h-14 w-full rounded-2xl border border-zinc-700/50 bg-zinc-900/80 pl-5 pr-32 text-base text-zinc-100 placeholder:text-zinc-500 shadow-lg shadow-black/20 backdrop-blur-sm focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30 transition"
+              />
+              <button
+                onClick={handleGo}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-blue-600/25 transition hover:bg-blue-500 active:scale-95 relative"
+              >
+                Build Model &rarr;
+              </button>
+            </div>
+            <div className="mt-3 flex items-center justify-center gap-4 text-[13px] text-zinc-500">
+              {["fire hydrants", "drones", "stop signs", "playing cards"].map((ex) => (
+                <button
+                  key={ex}
+                  onClick={() => { setQuery(ex); inputRef.current?.focus(); }}
+                  className="rounded-full border border-zinc-800 px-3 py-1 transition hover:border-zinc-600 hover:text-zinc-300"
+                >
+                  {ex}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Input methods */}
-      <section className="border-t border-zinc-800 py-20">
-        <div className="mx-auto max-w-5xl px-6">
-          <h2 className="text-center text-3xl font-bold tracking-tight">
-            Three ways to get started
-          </h2>
+      {/* Pipeline visualization */}
+      <section className="border-t border-zinc-800/50 py-16">
+        <div className="mx-auto max-w-4xl px-6">
+          <ScrollReveal>
+            <div className="text-center">
+              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+                One command. Five stages. Zero manual work.
+              </h2>
+              <p className="mt-3 text-zinc-400">
+                Fully automated — from description to deployable model.
+              </p>
+            </div>
+          </ScrollReveal>
 
-          <div className="mt-12 grid gap-6 sm:grid-cols-3">
+          <div className="relative mt-14">
+            {/* Connection line */}
+            <div className="absolute top-8 left-[10%] right-[10%] hidden h-px bg-gradient-to-r from-transparent via-zinc-700 to-transparent sm:block" />
+
+            <div className="grid gap-8 sm:grid-cols-5">
+              {[
+                { num: "01", title: "Describe", desc: "Tell us what to detect", color: "from-blue-500 to-blue-600" },
+                { num: "02", title: "Gather", desc: "Web search for images", color: "from-blue-500 to-blue-600" },
+                { num: "03", title: "Filter", desc: "Gemma 4 verifies each", color: "from-blue-500 to-blue-600" },
+                { num: "04", title: "Label", desc: "Falcon draws bboxes", color: "from-blue-500 to-blue-600" },
+                { num: "05", title: "Train", desc: "YOLO model on GPU", color: "from-blue-500 to-blue-600" },
+              ].map((step, i) => (
+                <ScrollReveal key={i} delay={i * 0.1} direction="up">
+                  <div className="text-center">
+                    <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br ${step.color} text-xl font-bold text-white shadow-lg`}>
+                      {step.num}
+                    </div>
+                    <h3 className="mt-4 text-sm font-semibold">{step.title}</h3>
+                    <p className="mt-1 text-xs text-zinc-500">{step.desc}</p>
+                  </div>
+                </ScrollReveal>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Three surfaces */}
+      <section className="border-t border-zinc-800/50 py-16">
+        <div className="mx-auto max-w-5xl px-6">
+          <ScrollReveal>
+            <div className="text-center">
+              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+                Three ways to build
+              </h2>
+              <p className="mt-3 text-zinc-400">
+                Website for humans. CLI for developers. MCP for AI agents.
+              </p>
+            </div>
+          </ScrollReveal>
+
+          <div className="mt-12 grid gap-5 sm:grid-cols-3">
             {[
               {
-                title: "Upload Images",
-                desc: "Drag and drop your own images. We label them with bounding boxes and export a YOLO dataset.",
+                title: "Website",
+                subtitle: "For everyone",
+                desc: "Upload images, pick a pipeline mode, download your trained YOLO model. No code needed.",
+                href: "/build",
+                cta: "Open Builder",
                 icon: (
-                  <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
                   </svg>
                 ),
               },
               {
-                title: "Paste a URL",
-                desc: "Roboflow dataset, GitHub repo, or any image URL. We pull the images and run the pipeline.",
+                title: "CLI",
+                subtitle: "For developers",
+                desc: "pip install, one command, full pipeline. Integrate into your CI/CD or research workflow.",
+                href: "https://github.com/walter-grace/data-label-factory",
+                cta: "View on GitHub",
                 icon: (
-                  <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.07-9.07a4.5 4.5 0 00-1.242-7.244l-4.5 4.5a4.5 4.5 0 006.364 6.364l1.757-1.757" />
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z" />
                   </svg>
                 ),
               },
               {
-                title: "Auto-Gather",
-                desc: "Just describe what you want. We search the internet, download images, and build the dataset for you.",
+                title: "MCP Server",
+                subtitle: "For AI agents",
+                desc: "7 tools your agent can call to build its own vision. Stripe Machine Payments for autonomous billing.",
+                href: "/build",
+                cta: "Learn More",
                 icon: (
-                  <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
                   </svg>
                 ),
               },
-            ].map((method, i) => (
-              <div
-                key={i}
-                className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 transition hover:border-zinc-700 hover:bg-zinc-900"
+            ].map((item, i) => (
+              <ScrollReveal key={i} delay={i * 0.12} direction="up">
+              <Link
+                href={item.href}
+                className="group block rounded-2xl border border-zinc-800 bg-zinc-900/30 p-6 transition hover:border-zinc-700 hover:bg-zinc-900/60"
               >
-                <div className="text-blue-400">{method.icon}</div>
-                <h3 className="mt-4 text-lg font-semibold">{method.title}</h3>
-                <p className="mt-2 text-sm text-zinc-400">{method.desc}</p>
-              </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/10 text-blue-400">
+                    {item.icon}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">{item.title}</h3>
+                    <p className="text-xs text-zinc-500">{item.subtitle}</p>
+                  </div>
+                </div>
+                <p className="mt-4 text-sm text-zinc-400">{item.desc}</p>
+                <div className="mt-4 text-sm font-medium text-blue-400 transition group-hover:text-blue-300">
+                  {item.cta} &rarr;
+                </div>
+              </Link>
+              </ScrollReveal>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Backends */}
-      {providers.length > 0 && (
-        <section className="border-t border-zinc-800 py-20">
-          <div className="mx-auto max-w-4xl px-6">
-            <h2 className="text-center text-3xl font-bold tracking-tight">
-              Powered by {alive.length} AI backends
-            </h2>
-            <p className="mt-3 text-center text-zinc-400">
-              Mix and match vision models for every stage of the pipeline
-            </p>
-
-            <div className="mt-10 grid gap-3 sm:grid-cols-2">
-              {providers.map((p) => (
-                <div
-                  key={p.name}
-                  className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3"
+      {/* Code example */}
+      <section className="border-t border-zinc-800/50 py-16">
+        <div className="mx-auto max-w-4xl px-6">
+          <div className="grid gap-10 sm:grid-cols-2 items-center">
+            <ScrollReveal direction="left"><div>
+              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+                Three commands.
+                <br />
+                <span className="text-zinc-400">That&apos;s it.</span>
+              </h2>
+              <p className="mt-4 text-zinc-400">
+                Install, set your API key, run the pipeline. Works on Mac, Linux,
+                or cloud GPU. Open source, Apache 2.0.
+              </p>
+              <div className="mt-6 flex gap-3">
+                <Link
+                  href="/build"
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500"
                 >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`h-2.5 w-2.5 rounded-full ${
-                        p.alive ? "bg-emerald-400" : "bg-zinc-600"
-                      }`}
-                    />
-                    <span className="font-mono text-sm font-medium">
-                      {p.name}
-                    </span>
-                  </div>
-                  <div className="flex gap-1.5">
-                    {(p.capabilities ?? []).map((c: string) => (
-                      <span
-                        key={c}
-                        className="rounded bg-zinc-800 px-2 py-0.5 text-[11px] text-zinc-400"
-                      >
-                        {c}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
+                  Try the Web UI
+                </Link>
+                <a
+                  href="https://github.com/walter-grace/data-label-factory"
+                  target="_blank"
+                  className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 px-5 py-2.5 text-sm font-medium text-zinc-300 transition hover:bg-zinc-800"
+                >
+                  Documentation
+                </a>
+              </div>
+            </div></ScrollReveal>
+            <ScrollReveal direction="right" delay={0.15}>
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 font-mono text-[13px] leading-relaxed">
+              <div className="flex items-center gap-2 text-zinc-500 mb-4">
+                <div className="h-3 w-3 rounded-full bg-red-500/60" />
+                <div className="h-3 w-3 rounded-full bg-yellow-500/60" />
+                <div className="h-3 w-3 rounded-full bg-green-500/60" />
+                <span className="ml-2 text-xs">terminal</span>
+              </div>
+              <div className="space-y-1.5">
+                <p><span className="text-zinc-500">$</span> <span className="text-blue-400">pip install</span> data-label-factory</p>
+                <p className="text-zinc-600"># set your OpenRouter key</p>
+                <p><span className="text-zinc-500">$</span> <span className="text-blue-400">export</span> OPENROUTER_API_KEY=sk-or-...</p>
+                <p className="text-zinc-600"># run the full pipeline</p>
+                <p><span className="text-zinc-500">$</span> <span className="text-blue-400">data_label_factory pipeline</span> \</p>
+                <p className="text-zinc-400 pl-4">--project stop-signs.yaml \</p>
+                <p className="text-zinc-400 pl-4">--backend openrouter</p>
+                <p className="mt-3 text-emerald-400">{">"} best.pt ready in experiments/latest/</p>
+              </div>
             </div>
+            </ScrollReveal>
           </div>
-        </section>
-      )}
-
-      {/* CTA */}
-      <section className="border-t border-zinc-800 py-20">
-        <div className="mx-auto max-w-2xl px-6 text-center">
-          <h2 className="text-3xl font-bold tracking-tight">
-            Ready to build?
-          </h2>
-          <p className="mt-3 text-zinc-400">
-            No account needed. Upload images, describe your target, and get a
-            YOLO dataset in minutes.
-          </p>
-          <Link
-            href="/build"
-            className="mt-8 inline-flex h-12 items-center gap-2 rounded-lg bg-blue-600 px-8 text-base font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-500"
-          >
-            Start Building
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-            </svg>
-          </Link>
         </div>
       </section>
 
+      {/* Powered by */}
+      <section className="border-t border-zinc-800/50 py-16">
+        <ScrollReveal>
+        <div className="mx-auto max-w-4xl px-6 text-center">
+          <p className="text-xs uppercase tracking-widest text-zinc-500 mb-8">Powered by</p>
+          <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-zinc-500">
+            {["Gemma 4", "Falcon Perception", "OpenRouter", "YOLO11", "MLX", "RunPod"].map((name) => (
+              <span key={name} className="text-sm font-medium">{name}</span>
+            ))}
+          </div>
+        </div>
+        </ScrollReveal>
+      </section>
+
+      {/* Final CTA */}
+      <section className="border-t border-zinc-800/50 py-16">
+        <ScrollReveal>
+        <div className="mx-auto max-w-2xl px-6 text-center">
+          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            Give your agent eyes.
+          </h2>
+          <p className="mt-4 text-zinc-400">
+            From text description to trained vision model. No labeling, no
+            training infrastructure, no PhD required.
+          </p>
+          <div className="mt-8 flex items-center justify-center gap-4">
+            <Link
+              href="/build"
+              className="inline-flex h-12 items-center gap-2 rounded-xl bg-blue-600 px-8 text-base font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500 active:scale-[0.98]"
+            >
+              Start Building
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+              </svg>
+            </Link>
+            <a
+              href="https://github.com/walter-grace/data-label-factory"
+              target="_blank"
+              className="inline-flex h-12 items-center gap-2 rounded-xl border border-zinc-700 px-8 text-base font-medium text-zinc-300 transition hover:bg-zinc-800"
+            >
+              View Source
+            </a>
+          </div>
+        </div>
+        </ScrollReveal>
+      </section>
+
       {/* Footer */}
-      <footer className="border-t border-zinc-800 py-8">
-        <div className="mx-auto max-w-5xl px-6 flex items-center justify-between text-sm text-zinc-500">
-          <span>data-label-factory v0.2.0</span>
+      <footer className="border-t border-zinc-800/50 py-8">
+        <div className="mx-auto max-w-5xl px-6 flex flex-col items-center justify-between gap-4 text-sm text-zinc-500 sm:flex-row">
+          <div className="flex items-center gap-2">
+            <div className="flex h-5 w-5 items-center justify-center rounded bg-blue-600 text-[8px] font-black text-white">
+              DLF
+            </div>
+            <span>Data Label Factory</span>
+          </div>
           <div className="flex gap-6">
-            <Link href="/build" className="hover:text-zinc-300">Build</Link>
-            <Link href="/train" className="hover:text-zinc-300">Train</Link>
-            <Link href="/label" className="hover:text-zinc-300">Label</Link>
-            <Link href="/canvas" className="hover:text-zinc-300">Canvas</Link>
-            <a href="https://github.com/walter-grace/data-label-factory" target="_blank" className="hover:text-zinc-300">GitHub</a>
+            <Link href="/build" className="transition hover:text-zinc-300">Build</Link>
+            <Link href="/train" className="transition hover:text-zinc-300">Train</Link>
+            <Link href="/pipeline" className="transition hover:text-zinc-300">Research</Link>
+            <Link href="/label" className="transition hover:text-zinc-300">Label</Link>
+            <a href="https://github.com/walter-grace/data-label-factory" target="_blank" className="transition hover:text-zinc-300">GitHub</a>
           </div>
         </div>
       </footer>
