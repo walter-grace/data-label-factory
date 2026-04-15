@@ -229,19 +229,45 @@ export default function ConnectPage() {
             </div>
 
             <div className="rounded-2xl border border-blue-500/20 bg-blue-950/10 p-6">
-              <h3 className="font-semibold text-blue-400 mb-2">MCP Server</h3>
+              <h3 className="font-semibold text-blue-400 mb-2">MCP Server (8 tools)</h3>
               <p className="text-sm text-zinc-400">
-                Connect via MCP for full pipeline access — 7 tools including
+                Connect via MCP for full pipeline access including
                 <code className="mx-1 rounded bg-zinc-800 px-1.5 py-0.5 text-blue-400 text-xs">label_dataset</code>,
                 <code className="mx-1 rounded bg-zinc-800 px-1.5 py-0.5 text-blue-400 text-xs">train_model</code>, and
                 <code className="mx-1 rounded bg-zinc-800 px-1.5 py-0.5 text-blue-400 text-xs">play_flywheel</code>.
               </p>
               <pre className="mt-3 rounded-xl bg-zinc-900 border border-zinc-800 p-3 text-xs text-zinc-400">
-{`# Add to your MCP config
+{`# Claude Code / Cursor
 "data-label-factory": {
   "command": "data_label_factory",
   "args": ["serve-mcp"]
 }`}
+              </pre>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-6">
+              <h3 className="font-semibold mb-2">Hermes Agent</h3>
+              <p className="text-sm text-zinc-400 mb-3">
+                Connect{" "}
+                <a href="https://github.com/nousresearch/hermes-agent" target="_blank" className="text-blue-400 hover:text-blue-300">
+                  Hermes Agent
+                </a>
+                {" "}for self-improving labeling with persistent memory and 200+ model support.
+              </p>
+              <pre className="rounded-xl bg-zinc-900 border border-zinc-800 p-3 text-xs text-zinc-400">
+{`# ~/.hermes/config.yaml
+mcp_servers:
+  data_label_factory:
+    command: "data_label_factory"
+    args: ["serve-mcp"]
+
+# Hermes auto-discovers all 8 tools:
+# - play_flywheel (label game)
+# - label_dataset (full pipeline)
+# - create_project, check_status
+# - score_results, benchmark
+# - generate_synthetic
+# - list_providers`}
               </pre>
             </div>
           </div>

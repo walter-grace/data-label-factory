@@ -181,6 +181,42 @@ def _make_server():
                     "required": ["refs_dir", "output_dir"],
                 },
             ),
+            Tool(
+                name="play_flywheel",
+                description=(
+                    "Play the Flywheel labeling game. Get a challenge image + target, "
+                    "answer YES or NO to verify the AI's prediction. Builds trust score "
+                    "and contributes to GRPO training. Agents can play just like humans."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "action": {
+                            "type": "string",
+                            "enum": ["challenge", "answer", "stats", "register"],
+                            "description": "Action: get a challenge, submit answer, check stats, or register",
+                        },
+                        "agent_name": {
+                            "type": "string",
+                            "description": "Your agent name (for register action)",
+                        },
+                        "challenge_id": {
+                            "type": "string",
+                            "description": "Challenge ID from a previous challenge (for answer action)",
+                        },
+                        "answer": {
+                            "type": "string",
+                            "enum": ["YES", "NO"],
+                            "description": "Your answer (for answer action)",
+                        },
+                        "custom_endpoint": {
+                            "type": "string",
+                            "description": "Your custom vision API endpoint URL (for register action, optional)",
+                        },
+                    },
+                    "required": ["action"],
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -220,6 +256,9 @@ def _dispatch(name: str, args: dict) -> dict:
 
     if name == "generate_synthetic":
         return _tool_generate_synthetic(args)
+
+    if name == "play_flywheel":
+        return _tool_play_flywheel(args)
 
     return {"error": f"unknown tool: {name}"}
 
@@ -518,6 +557,69 @@ def _tool_generate_synthetic(args: dict) -> dict:
         output_dir=args["output_dir"],
         n_scenes=args.get("n_scenes", 100),
     )
+
+
+def _tool_play_flywheel(args: dict) -> dict:
+    """Play the Flywheel labeling game via the Next.js Agent API."""
+    import urllib.request
+
+    api_base = os.environ.get("DLF_WEB_URL", "http://localhost:3030")
+    action = args.get("action", "challenge")
+    agent_name = args.get("agent_name", "mcp-agent")
+
+    if action == "register":
+        payload = json.dumps({
+            "name": agent_name,
+            "type": "llm",
+            "custom_endpoint": args.get("custom_endpoint"),
+        }).encode()
+        req = urllib.request.Request(
+            f"{api_base}/api/agent?action=register",
+            data=payload,
+            headers={"Content-Type": "application/json", "x-agent-id": agent_name},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read())
+
+    if action == "challenge":
+        req = urllib.request.Request(
+            f"{api_base}/api/agent?action=challenge&agent_id={agent_name}",
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            data = json.loads(r.read())
+        return {
+            **data,
+            "instructions": (
+                f"Look at the image at {data.get('image_url', '')} and answer: "
+                f"{data.get('question', '')} Reply with YES or NO using the "
+                f"play_flywheel tool with action='answer'."
+            ),
+        }
+
+    if action == "answer":
+        challenge_id = args.get("challenge_id")
+        answer = args.get("answer", "").upper()
+        if not challenge_id or answer not in ("YES", "NO"):
+            return {"error": "Provide challenge_id and answer (YES or NO)"}
+        payload = json.dumps({"challenge_id": challenge_id, "answer": answer}).encode()
+        req = urllib.request.Request(
+            f"{api_base}/api/agent?action=answer",
+            data=payload,
+            headers={"Content-Type": "application/json", "x-agent-id": agent_name},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read())
+
+    if action == "stats":
+        req = urllib.request.Request(
+            f"{api_base}/api/agent?action=stats&agent_id={agent_name}",
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read())
+
+    return {"error": f"Unknown action: {action}. Use: challenge, answer, register, stats"}
 
 
 def main():
