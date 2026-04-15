@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import Link from "next/link";
 
 const DLF_API = "/api/dlf";
 
@@ -286,15 +287,34 @@ export default function LabelPage() {
   const noCount = filterResults.filter((r) => r.verdict === "NO").length;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+      {/* Nav */}
+      <nav className="fixed top-0 z-50 w-full border-b border-white/5 bg-zinc-950/80 backdrop-blur-xl">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-xs font-black">DLF</div>
+            <span className="text-sm font-semibold tracking-tight">Data Label Factory</span>
+          </Link>
+          <div className="hidden items-center gap-8 text-sm text-zinc-400 sm:flex">
+            <Link href="/build" className="transition hover:text-white">Build</Link>
+            <Link href="/train" className="transition hover:text-white">Train</Link>
+            <Link href="/label" className="text-white">Label</Link>
+            <Link href="/deploy" className="transition hover:text-white">Deploy</Link>
+            <Link href="/pricing" className="transition hover:text-white">Pricing</Link>
+            <a href="https://github.com/walter-grace/data-label-factory" target="_blank" className="transition hover:text-white">GitHub</a>
+          </div>
+          <Link href="/build" className="rounded-lg bg-white px-4 py-1.5 text-sm font-medium text-zinc-900 transition hover:bg-zinc-200">Get Started</Link>
+        </div>
+      </nav>
+
+      <div className="max-w-7xl mx-auto p-6 pt-20">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              data-label-factory
+            <h1 className="text-2xl font-bold tracking-tight">
+              Label Images
             </h1>
-            <p className="text-zinc-400 mt-1">
+            <p className="text-zinc-400 text-sm mt-1">
               Upload images, describe your target, pick a model, get labels.
             </p>
           </div>
@@ -634,6 +654,23 @@ export default function LabelPage() {
           </div>
         </div>
       </div>
+
+      {/* Footer */}
+      <footer className="border-t border-zinc-800/50 py-8 mt-12">
+        <div className="mx-auto max-w-5xl px-6 flex flex-col items-center justify-between gap-4 text-sm text-zinc-500 sm:flex-row">
+          <div className="flex items-center gap-2">
+            <div className="flex h-5 w-5 items-center justify-center rounded bg-blue-600 text-[8px] font-black text-white">DLF</div>
+            <span>Data Label Factory</span>
+          </div>
+          <div className="flex gap-6">
+            <Link href="/build" className="transition hover:text-zinc-300">Build</Link>
+            <Link href="/train" className="transition hover:text-zinc-300">Train</Link>
+            <Link href="/deploy" className="transition hover:text-zinc-300">Deploy</Link>
+            <Link href="/pricing" className="transition hover:text-zinc-300">Pricing</Link>
+            <a href="https://github.com/walter-grace/data-label-factory" target="_blank" className="transition hover:text-zinc-300">GitHub</a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

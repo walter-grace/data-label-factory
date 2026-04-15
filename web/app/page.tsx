@@ -91,13 +91,15 @@ export default function Home() {
             <Link href="/build" className="transition hover:text-white">Build</Link>
             <Link href="/train" className="transition hover:text-white">Train</Link>
             <Link href="/label" className="transition hover:text-white">Label</Link>
-            <Link href="/pipeline" className="transition hover:text-white">Research</Link>
+            <Link href="/deploy" className="transition hover:text-white">Deploy</Link>
+            <Link href="/pricing" className="transition hover:text-white">Pricing</Link>
             <a href="https://github.com/walter-grace/data-label-factory" target="_blank" className="transition hover:text-white">GitHub</a>
           </div>
           {/* Mobile nav links */}
           <div className="flex items-center gap-4 text-sm text-zinc-400 sm:hidden">
             <Link href="/build" className="transition hover:text-white">Build</Link>
             <Link href="/train" className="transition hover:text-white">Train</Link>
+            <Link href="/pricing" className="transition hover:text-white">Pricing</Link>
           </div>
           <Link
             href="/build"
