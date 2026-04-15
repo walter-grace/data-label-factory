@@ -69,15 +69,7 @@ export default function Home() {
               : "Connecting to backends..."}
           </div>
 
-          <h1 className="relative text-4xl font-bold tracking-tight sm:text-6xl sm:leading-[1.1]">
-            {/* Label on the headline */}
-            <div className="pointer-events-none absolute -inset-4 rounded-lg border border-blue-500/[0.08]">
-              <div className="absolute -top-5 left-1 rounded-sm bg-blue-500/5 px-1.5 py-[2px] text-[8px] font-mono text-blue-400/20 font-normal">h1.heading</div>
-              <div className="absolute top-0 left-0 h-2 w-2 border-t border-l border-blue-500/15" />
-              <div className="absolute top-0 right-0 h-2 w-2 border-t border-r border-blue-500/15" />
-              <div className="absolute bottom-0 left-0 h-2 w-2 border-b border-l border-blue-500/15" />
-              <div className="absolute bottom-0 right-0 h-2 w-2 border-b border-r border-blue-500/15" />
-            </div>
+          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl sm:leading-[1.1]">
             Train your agent&apos;s
             <br />
             <span className="bg-gradient-to-r from-blue-400 via-blue-300 to-cyan-400 bg-clip-text text-transparent">
@@ -91,18 +83,7 @@ export default function Home() {
           </p>
 
           {/* Input box — the product IS the input */}
-          <div className="mx-auto mt-10 max-w-xl relative">
-            {/* Label on input */}
-            <div className="pointer-events-none absolute -inset-2 rounded-2xl border border-emerald-500/10 z-10">
-              <div className="absolute -top-5 left-2 rounded-sm bg-emerald-500/5 px-1.5 py-[2px] text-[8px] font-mono text-emerald-400/25 flex items-center gap-1">
-                <svg className="h-2 w-2" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
-                text_input
-              </div>
-              <div className="absolute top-0 left-0 h-1.5 w-1.5 border-t border-l border-emerald-500/20" />
-              <div className="absolute top-0 right-0 h-1.5 w-1.5 border-t border-r border-emerald-500/20" />
-              <div className="absolute bottom-0 left-0 h-1.5 w-1.5 border-b border-l border-emerald-500/20" />
-              <div className="absolute bottom-0 right-0 h-1.5 w-1.5 border-b border-r border-emerald-500/20" />
-            </div>
+          <div className="mx-auto mt-10 max-w-xl">
             <div className="relative">
               <input
                 ref={inputRef}
