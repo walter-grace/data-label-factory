@@ -16,6 +16,8 @@ type Challenge = {
   aiPrediction: "YES" | "NO";
   aiConfidence: number;
   aiBbox?: { x: number; y: number; w: number; h: number };
+  isHoneypot: boolean;        // true = we KNOW the ground truth
+  groundTruth?: "YES" | "NO"; // only set for honeypots
 };
 
 type Answer = {
@@ -23,20 +25,25 @@ type Answer = {
   userAnswer: "YES" | "NO";
   correct: boolean;
   timeMs: number;
+  wasHoneypot: boolean;
 };
 
-// Sample images for the game (in production these come from the pipeline)
+// Sample challenges. In production: real pipeline images from R2.
+// Honeypots have KNOWN ground truth — used to measure player reliability.
+// ~30% of challenges are honeypots (player never knows which ones).
 const SAMPLE_CHALLENGES: Challenge[] = [
-  { id: 1, imageUrl: "https://images.unsplash.com/photo-1566933293069-b55c7f326dd4?w=400", target: "car", aiPrediction: "YES", aiConfidence: 0.92 },
-  { id: 2, imageUrl: "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=400", target: "dog", aiPrediction: "YES", aiConfidence: 0.88 },
-  { id: 3, imageUrl: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400", target: "car", aiPrediction: "NO", aiConfidence: 0.95 },
-  { id: 4, imageUrl: "https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400", target: "dog", aiPrediction: "YES", aiConfidence: 0.78 },
-  { id: 5, imageUrl: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=400", target: "stop sign", aiPrediction: "NO", aiConfidence: 0.85 },
-  { id: 6, imageUrl: "https://images.unsplash.com/photo-1583337130417-13104dec14a4?w=400", target: "cat", aiPrediction: "YES", aiConfidence: 0.91 },
-  { id: 7, imageUrl: "https://images.unsplash.com/photo-1474511320723-9a56873571b7?w=400", target: "bird", aiPrediction: "YES", aiConfidence: 0.73 },
-  { id: 8, imageUrl: "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=400", target: "fire hydrant", aiPrediction: "NO", aiConfidence: 0.89 },
-  { id: 9, imageUrl: "https://images.unsplash.com/photo-1517849845537-4d257902454a?w=400", target: "dog", aiPrediction: "YES", aiConfidence: 0.96 },
-  { id: 10, imageUrl: "https://images.unsplash.com/photo-1526336024174-e58f5cdd8e13?w=400", target: "cat", aiPrediction: "YES", aiConfidence: 0.84 },
+  // Honeypots — we KNOW the answer. Tests player trustworthiness.
+  { id: 1, imageUrl: "https://images.unsplash.com/photo-1566933293069-b55c7f326dd4?w=400", target: "car", aiPrediction: "YES", aiConfidence: 0.92, isHoneypot: true, groundTruth: "YES" },
+  { id: 2, imageUrl: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400", target: "car", aiPrediction: "NO", aiConfidence: 0.95, isHoneypot: true, groundTruth: "NO" },
+  { id: 3, imageUrl: "https://images.unsplash.com/photo-1517849845537-4d257902454a?w=400", target: "dog", aiPrediction: "YES", aiConfidence: 0.96, isHoneypot: true, groundTruth: "YES" },
+  // Real challenges — AI made a prediction, we need human verification
+  { id: 4, imageUrl: "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=400", target: "dog", aiPrediction: "YES", aiConfidence: 0.88, isHoneypot: false },
+  { id: 5, imageUrl: "https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400", target: "dog", aiPrediction: "YES", aiConfidence: 0.78, isHoneypot: false },
+  { id: 6, imageUrl: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=400", target: "stop sign", aiPrediction: "NO", aiConfidence: 0.85, isHoneypot: false },
+  { id: 7, imageUrl: "https://images.unsplash.com/photo-1583337130417-13104dec14a4?w=400", target: "cat", aiPrediction: "YES", aiConfidence: 0.91, isHoneypot: false },
+  { id: 8, imageUrl: "https://images.unsplash.com/photo-1474511320723-9a56873571b7?w=400", target: "bird", aiPrediction: "YES", aiConfidence: 0.73, isHoneypot: false },
+  { id: 9, imageUrl: "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=400", target: "fire hydrant", aiPrediction: "NO", aiConfidence: 0.89, isHoneypot: false },
+  { id: 10, imageUrl: "https://images.unsplash.com/photo-1526336024174-e58f5cdd8e13?w=400", target: "cat", aiPrediction: "YES", aiConfidence: 0.84, isHoneypot: false },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -55,6 +62,7 @@ export default function PlayPage() {
   const [roundStartTime, setRoundStartTime] = useState(0);
   const [challengeStartTime, setChallengeStartTime] = useState(0);
   const [showFeedback, setShowFeedback] = useState<"correct" | "wrong" | null>(null);
+  const [trustScore, setTrustScore] = useState(100); // 0-100, based on honeypot accuracy
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Start a game round
@@ -67,6 +75,7 @@ export default function PlayPage() {
     setStreak(0);
     setBestStreak(0);
     setTimeLeft(60);
+    setTrustScore(100);
     setMode(gameMode);
     setRoundStartTime(Date.now());
     setChallengeStartTime(Date.now());
@@ -94,14 +103,28 @@ export default function PlayPage() {
     const challenge = challenges[currentIdx];
     if (!challenge) return;
 
-    // For now, the AI prediction IS the ground truth (in production, consensus determines truth)
-    const correct = userAnswer === challenge.aiPrediction;
     const timeMs = Date.now() - challengeStartTime;
+
+    // Honeypots: check against KNOWN ground truth (measures player reliability)
+    // Real challenges: check against AI prediction (player is verifying the AI)
+    let correct: boolean;
+    if (challenge.isHoneypot && challenge.groundTruth) {
+      correct = userAnswer === challenge.groundTruth;
+      // Update trust score based on honeypot performance
+      setTrustScore((prev) => correct
+        ? Math.min(100, prev + 5)   // reward correct honeypot
+        : Math.max(0, prev - 25)    // heavily penalize wrong honeypot
+      );
+    } else {
+      // Real challenge — agreement with AI counts as "correct" for scoring
+      // but the real value is the label itself (stored for GRPO)
+      correct = userAnswer === challenge.aiPrediction;
+    }
 
     const newStreak = correct ? streak + 1 : 0;
     const pointsEarned = correct ? (10 + Math.min(newStreak * 5, 50) + Math.max(0, Math.floor((3000 - timeMs) / 100))) : 0;
 
-    setAnswers((prev) => [...prev, { challengeId: challenge.id, userAnswer, correct, timeMs }]);
+    setAnswers((prev) => [...prev, { challengeId: challenge.id, userAnswer, correct, timeMs, wasHoneypot: challenge.isHoneypot }]);
     setScore((prev) => prev + pointsEarned);
     setStreak(newStreak);
     if (newStreak > bestStreak) setBestStreak(newStreak);
@@ -137,6 +160,10 @@ export default function PlayPage() {
   const current = challenges[currentIdx];
   const accuracy = answers.length > 0 ? Math.round((answers.filter((a) => a.correct).length / answers.length) * 100) : 0;
   const avgTime = answers.length > 0 ? Math.round(answers.reduce((s, a) => s + a.timeMs, 0) / answers.length) : 0;
+  const honeypotAnswers = answers.filter((a) => a.wasHoneypot);
+  const honeypotAccuracy = honeypotAnswers.length > 0 ? Math.round((honeypotAnswers.filter((a) => a.correct).length / honeypotAnswers.length) * 100) : 100;
+  const realAnswers = answers.filter((a) => !a.wasHoneypot);
+  const labelsAccepted = trustScore >= 50 ? realAnswers.filter((a) => a.correct).length : 0;
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -263,6 +290,10 @@ export default function PlayPage() {
                   <span className="text-zinc-500">Labeled </span>
                   <span className="font-bold">{answers.length}</span>
                 </div>
+                <div>
+                  <span className="text-zinc-500">Trust </span>
+                  <span className={`font-bold ${trustScore >= 75 ? "text-emerald-400" : trustScore >= 50 ? "text-yellow-400" : "text-red-400"}`}>{trustScore}%</span>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <div className={`text-2xl font-mono font-bold ${timeLeft <= 10 ? "text-red-400 animate-pulse" : "text-zinc-300"}`}>
@@ -373,10 +404,37 @@ export default function PlayPage() {
               </div>
             </div>
 
-            {/* GRPO contribution */}
-            <div className="mt-6 rounded-2xl border border-blue-500/20 bg-blue-950/10 p-4 text-sm text-zinc-400">
-              <span className="text-blue-400 font-semibold">{answers.filter((a) => a.correct).length} verified labels</span>
-              {" "}added to the training pool. These will be used to fine-tune the AI model via GRPO reinforcement learning.
+            {/* Trust score + GRPO contribution */}
+            <div className={`mt-6 rounded-2xl border p-4 text-sm ${
+              trustScore >= 75 ? "border-emerald-500/20 bg-emerald-950/10" :
+              trustScore >= 50 ? "border-blue-500/20 bg-blue-950/10" :
+              "border-red-500/20 bg-red-950/10"
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-semibold text-zinc-300">Trust Score</span>
+                <span className={`font-bold ${
+                  trustScore >= 75 ? "text-emerald-400" : trustScore >= 50 ? "text-blue-400" : "text-red-400"
+                }`}>
+                  {trustScore}%
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden mb-3">
+                <div className={`h-full rounded-full transition-all ${
+                  trustScore >= 75 ? "bg-emerald-500" : trustScore >= 50 ? "bg-blue-500" : "bg-red-500"
+                }`} style={{ width: `${trustScore}%` }} />
+              </div>
+              {trustScore >= 50 ? (
+                <p className="text-zinc-400">
+                  <span className="text-blue-400 font-semibold">{labelsAccepted} verified labels</span>
+                  {" "}accepted for GRPO training. Your honeypot accuracy: {honeypotAccuracy}%.
+                  {honeypotAnswers.length > 0 && ` (${honeypotAnswers.filter(a => a.correct).length}/${honeypotAnswers.length} correct)`}
+                </p>
+              ) : (
+                <p className="text-red-400">
+                  Trust too low — labels discarded. You missed too many verification checks.
+                  Play again more carefully to contribute to training.
+                </p>
+              )}
             </div>
 
             {/* Actions */}
