@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
+import RacingChart from "@/components/RacingChart";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -34,6 +35,15 @@ type FeedEvent = {
 };
 
 // Simulated agents for demo
+const AGENT_COLORS: Record<string, string> = {
+  "hermes-1": "#8B5CF6",   // purple
+  "claude-1": "#3B82F6",   // blue
+  "gemma-1": "#06B6D4",    // cyan
+  "openclaw-1": "#10B981", // emerald
+  "yolo-1": "#F59E0B",     // amber
+  "falcon-1": "#EF4444",   // red
+};
+
 const DEMO_AGENTS: AgentEntry[] = [
   { id: "hermes-1", name: "Hermes Agent", type: "llm", avatar: "H", score: 0, trust: 100, streak: 0, labels: 0, speed: 0, isLabeling: false },
   { id: "claude-1", name: "Claude Vision", type: "llm", avatar: "C", score: 0, trust: 100, streak: 0, labels: 0, speed: 0, isLabeling: false },
@@ -255,77 +265,22 @@ export default function ArenaPage() {
                 </div>
               )}
 
-              {/* Agent cards */}
-              <div className="space-y-3">
-                {sorted.map((agent, rank) => (
-                  <div
-                    key={agent.id}
-                    className={`flex items-center gap-4 rounded-2xl border p-4 transition-all duration-300 ${
-                      agent.isLabeling
-                        ? "border-blue-500/40 bg-blue-950/20 scale-[1.01]"
-                        : agent.lastAnswer?.correct === false
-                        ? "border-red-500/20 bg-red-950/10"
-                        : "border-zinc-800 bg-zinc-900/30"
-                    }`}
-                  >
-                    {/* Rank */}
-                    <div className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
-                      rank === 0 ? "bg-yellow-500/20 text-yellow-400" :
-                      rank === 1 ? "bg-zinc-400/20 text-zinc-300" :
-                      rank === 2 ? "bg-amber-700/20 text-amber-600" :
-                      "bg-zinc-800 text-zinc-500"
-                    }`}>
-                      {rank + 1}
-                    </div>
-
-                    {/* Avatar */}
-                    <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-lg font-black ${
-                      agent.type === "llm" ? "bg-blue-600/20 text-blue-400" :
-                      agent.type === "vision" ? "bg-purple-600/20 text-purple-400" :
-                      "bg-emerald-600/20 text-emerald-400"
-                    }`}>
-                      {agent.avatar}
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold truncate">{agent.name}</span>
-                        <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] text-zinc-500 uppercase">{agent.type}</span>
-                        {agent.streak >= 3 && (
-                          <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${
-                            agent.streak >= 10 ? "bg-red-500/20 text-red-400 animate-pulse" :
-                            agent.streak >= 5 ? "bg-orange-500/20 text-orange-400" :
-                            "bg-yellow-500/20 text-yellow-400"
-                          }`}>
-                            {agent.streak}x
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex gap-4 text-xs text-zinc-500 mt-0.5">
-                        <span>{agent.labels} labels</span>
-                        <span>trust: {agent.trust}%</span>
-                        <span>avg: {agent.speed}ms</span>
-                      </div>
-                    </div>
-
-                    {/* Score */}
-                    <div className="text-right">
-                      <div className={`text-xl font-bold ${
-                        rank === 0 ? "text-yellow-400" : "text-zinc-200"
-                      }`}>
-                        {agent.score.toLocaleString()}
-                      </div>
-                      {agent.lastAnswer && (
-                        <div className={`text-[10px] font-medium ${
-                          agent.lastAnswer.correct ? "text-emerald-400" : "text-red-400"
-                        }`}>
-                          {agent.lastAnswer.correct ? "+" : "X"} {agent.lastAnswer.target}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+              {/* Racing bar chart */}
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/20 p-5">
+                <RacingChart
+                  racers={sorted.map((agent) => ({
+                    id: agent.id,
+                    name: agent.name,
+                    score: agent.score,
+                    avatar: agent.avatar,
+                    color: AGENT_COLORS[agent.id] || "#3B82F6",
+                    streak: agent.streak,
+                    labels: agent.labels,
+                    type: agent.type,
+                    isActive: agent.isLabeling,
+                    lastCorrect: agent.lastAnswer?.correct,
+                  }))}
+                />
               </div>
             </div>
 
