@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import RacingChart from "@/components/RacingChart";
+import ScoreChart from "@/components/ScoreChart";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -65,6 +66,8 @@ export default function ArenaPage() {
   const [feed, setFeed] = useState<FeedEvent[]>([]);
   const [running, setRunning] = useState(false);
   const [totalLabels, setTotalLabels] = useState(0);
+  const [scoreHistory, setScoreHistory] = useState<Array<Record<string, number>>>([]);
+  const tickCount = useRef(0);
   const [showCombo, setShowCombo] = useState<{ name: string; streak: number; title: string } | null>(null);
   const feedRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -142,6 +145,14 @@ export default function ArenaPage() {
       setFeed((prev) => [...newEvents, ...prev].slice(0, 50));
       setTotalLabels((prev) => prev + activeCount);
 
+      // Record score snapshot for chart
+      tickCount.current++;
+      const snapshot: Record<string, number> = { tick: tickCount.current };
+      for (const a of updated) {
+        snapshot[a.id] = a.score;
+      }
+      setScoreHistory((prev) => [...prev.slice(-60), snapshot]);
+
       // Reset isLabeling after brief delay
       setTimeout(() => {
         setAgents((a) => a.map((ag) => ({ ...ag, isLabeling: false })));
@@ -156,6 +167,8 @@ export default function ArenaPage() {
     setAgents(DEMO_AGENTS.map((a) => ({ ...a, score: 0, trust: 100, streak: 0, labels: 0, speed: 0 })));
     setFeed([]);
     setTotalLabels(0);
+    setScoreHistory([]);
+    tickCount.current = 0;
     intervalRef.current = setInterval(tick, 800);
   };
 
@@ -282,6 +295,22 @@ export default function ArenaPage() {
                   }))}
                 />
               </div>
+
+              {/* Score over time chart */}
+              {scoreHistory.length > 2 && (
+                <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-900/20 p-5">
+                  <h3 className="text-sm font-semibold mb-4 text-zinc-300">Score Over Time</h3>
+                  <ScoreChart
+                    data={scoreHistory}
+                    agents={DEMO_AGENTS.map((a) => ({
+                      id: a.id,
+                      name: a.name,
+                      color: AGENT_COLORS[a.id] || "#3B82F6",
+                    }))}
+                    height={240}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Right: Live feed */}
