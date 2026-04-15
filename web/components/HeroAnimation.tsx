@@ -68,7 +68,7 @@ export default function HeroAnimation() {
   }, []);
 
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" suppressHydrationWarning>
       {/* Grid lines */}
       <div className="absolute inset-0 opacity-[0.03]">
         <div className="h-full w-full" style={{
