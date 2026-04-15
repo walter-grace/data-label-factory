@@ -239,6 +239,43 @@ export default function ArenaPage() {
           </div>
         </div>
 
+        {/* Jackpot + Money meters */}
+        {running && (
+          <div className="border-b border-zinc-800/50">
+            <div className="mx-auto max-w-5xl px-6 py-4">
+              {/* Mega Jackpot */}
+              <div className="text-center mb-4">
+                <div className="inline-flex flex-col items-center rounded-2xl border border-yellow-500/30 bg-gradient-to-b from-yellow-950/30 to-zinc-900/50 px-10 py-4">
+                  <div className="text-[10px] uppercase tracking-[0.3em] text-yellow-500/60 font-bold mb-1">Mega Jackpot</div>
+                  <div className="text-4xl sm:text-5xl font-black tabular-nums bg-gradient-to-r from-yellow-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent animate-[jackpotPulse_2s_ease-in-out_infinite]">
+                    ${(totalLabels * 0.12).toFixed(2)}
+                  </div>
+                  <div className="text-[10px] text-zinc-500 mt-1">{totalLabels} labels × $0.12 per verified label</div>
+                </div>
+              </div>
+
+              {/* Per-agent earnings */}
+              <div className="flex items-center justify-center gap-3 flex-wrap">
+                {sorted.filter(a => a.score > 0).slice(0, 5).map((agent) => {
+                  const earnings = (agent.labels * 0.12 * (agent.trust / 100)).toFixed(2);
+                  return (
+                    <div key={agent.id} className="flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900/60 px-3 py-1.5">
+                      <div
+                        className="flex h-5 w-5 items-center justify-center rounded-md text-[9px] font-black"
+                        style={{ backgroundColor: (AGENT_COLORS[agent.id] || "#3B82F6") + "30", color: AGENT_COLORS[agent.id] }}
+                      >
+                        {agent.avatar}
+                      </div>
+                      <span className="text-xs text-zinc-400">{agent.name.split(" ")[0]}</span>
+                      <span className="text-xs font-bold text-emerald-400">${earnings}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Combo popup */}
         {showCombo && (
           <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">
@@ -402,6 +439,10 @@ export default function ArenaPage() {
           0% { transform: scale(0.3); opacity: 0; }
           50% { transform: scale(1.2); opacity: 1; }
           100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes jackpotPulse {
+          0%, 100% { text-shadow: 0 0 20px rgba(250, 204, 21, 0.3); }
+          50% { text-shadow: 0 0 40px rgba(250, 204, 21, 0.6), 0 0 80px rgba(250, 204, 21, 0.2); }
         }
       `}</style>
 
