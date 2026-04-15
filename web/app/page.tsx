@@ -84,24 +84,16 @@ export default function Home() {
 
           {/* Input box — the product IS the input */}
           <div className="mx-auto mt-10 max-w-xl">
-            <div className="relative">
-              <input
-                ref={inputRef}
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleGo()}
-                placeholder="What do you want to detect?"
-                className="h-14 w-full rounded-2xl border border-zinc-700/50 bg-zinc-900/80 pl-5 pr-32 text-base text-zinc-100 placeholder:text-zinc-500 shadow-lg shadow-black/20 backdrop-blur-sm focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30 transition"
-              />
-              <button
-                onClick={handleGo}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-blue-600/25 transition hover:bg-blue-500 active:scale-95 relative"
-              >
-                Build Model &rarr;
-              </button>
-            </div>
-            <div className="mt-3 flex items-center justify-center gap-4 text-[13px] text-zinc-500">
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleGo()}
+              placeholder="What do you want to detect?"
+              className="h-14 w-full rounded-2xl border border-zinc-700/50 bg-zinc-900/80 px-5 text-base text-zinc-100 placeholder:text-zinc-500 shadow-lg shadow-black/20 backdrop-blur-sm focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30 transition"
+            />
+            <div className="mt-4 flex items-center justify-center gap-3 text-[13px] text-zinc-500">
               {["fire hydrants", "drones", "stop signs", "playing cards"].map((ex) => (
                 <button
                   key={ex}
@@ -111,6 +103,14 @@ export default function Home() {
                   {ex}
                 </button>
               ))}
+            </div>
+            <div className="mt-6 flex justify-center">
+              <button
+                onClick={handleGo}
+                className="rounded-xl bg-blue-600 px-8 py-3 text-base font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-500 active:scale-[0.98]"
+              >
+                Build Model &rarr;
+              </button>
             </div>
           </div>
         </div>
