@@ -1,144 +1,144 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 
 /**
- * Ambient background animation: bounding boxes being drawn and labeled
- * across a grid, like the pipeline is running behind the hero text.
- * Low opacity, purely atmospheric.
+ * Ambient background: faded image cards with bounding box labels,
+ * like real detections happening behind the hero text.
  */
 
-type Detection = {
+type DetectionCard = {
   id: number;
   x: number;
   y: number;
-  w: number;
-  h: number;
   label: string;
-  phase: "scan" | "detect" | "verify" | "fade";
+  emoji: string;
+  phase: "entering" | "visible" | "exiting";
+  rotation: number;
 };
 
-const LABELS = [
-  "stop sign", "drone", "fire hydrant", "bird", "car", "person",
-  "bicycle", "dog", "cat", "traffic light", "bottle", "chair",
-  "phone", "laptop", "backpack", "umbrella", "handbag", "clock",
+const OBJECTS = [
+  { label: "stop sign", emoji: "\u{1F6D1}" },
+  { label: "drone", emoji: "\u{1F681}" },
+  { label: "fire hydrant", emoji: "\u{1F6D2}" },
+  { label: "bird", emoji: "\u{1F426}" },
+  { label: "car", emoji: "\u{1F697}" },
+  { label: "dog", emoji: "\u{1F415}" },
+  { label: "cat", emoji: "\u{1F408}" },
+  { label: "bicycle", emoji: "\u{1F6B2}" },
+  { label: "bottle", emoji: "\u{1F37E}" },
+  { label: "laptop", emoji: "\u{1F4BB}" },
+  { label: "phone", emoji: "\u{1F4F1}" },
+  { label: "umbrella", emoji: "\u{2602}" },
+  { label: "backpack", emoji: "\u{1F392}" },
+  { label: "clock", emoji: "\u{1F570}" },
+  { label: "chair", emoji: "\u{1FA91}" },
+  { label: "pizza", emoji: "\u{1F355}" },
 ];
 
-function randomDetection(id: number): Detection {
-  return {
-    id,
-    x: 5 + Math.random() * 80,
-    y: 5 + Math.random() * 80,
-    w: 8 + Math.random() * 18,
-    h: 8 + Math.random() * 18,
-    label: LABELS[Math.floor(Math.random() * LABELS.length)],
-    phase: "scan",
+function seededRandom(seed: number) {
+  let s = seed;
+  return () => {
+    s = (s * 16807 + 0) % 2147483647;
+    return s / 2147483647;
   };
 }
 
 export default function HeroAnimation() {
-  const [detections, setDetections] = useState<Detection[]>([]);
+  const [cards, setCards] = useState<DetectionCard[]>([]);
 
   useEffect(() => {
-    // Seed initial detections
-    const initial = Array.from({ length: 6 }, (_, i) => randomDetection(i));
-    setDetections(initial);
+    // Use seeded random for consistent SSR/client
+    const rng = seededRandom(42);
+    const initial: DetectionCard[] = Array.from({ length: 8 }, (_, i) => ({
+      id: i,
+      x: 2 + rng() * 85,
+      y: 2 + rng() * 75,
+      label: OBJECTS[i % OBJECTS.length].label,
+      emoji: OBJECTS[i % OBJECTS.length].emoji,
+      phase: "visible" as const,
+      rotation: (rng() - 0.5) * 8,
+    }));
+    setCards(initial);
 
     let nextId = initial.length;
-
     const interval = setInterval(() => {
-      setDetections((prev) => {
-        const updated = prev.map((d) => {
-          if (d.phase === "scan") return { ...d, phase: "detect" as const };
-          if (d.phase === "detect") return { ...d, phase: "verify" as const };
-          if (d.phase === "verify") return { ...d, phase: "fade" as const };
-          return d;
+      setCards((prev) => {
+        // Cycle one card out and a new one in
+        const exitIdx = nextId % prev.length;
+        const objIdx = nextId % OBJECTS.length;
+        const r = Math.random;
+        return prev.map((card, i) => {
+          if (i === exitIdx) {
+            return {
+              id: nextId++,
+              x: 2 + r() * 85,
+              y: 2 + r() * 75,
+              label: OBJECTS[objIdx].label,
+              emoji: OBJECTS[objIdx].emoji,
+              phase: "entering" as const,
+              rotation: (r() - 0.5) * 8,
+            };
+          }
+          if (card.phase === "entering") return { ...card, phase: "visible" as const };
+          return card;
         });
-
-        // Remove faded, add new
-        const alive = updated.filter((d) => d.phase !== "fade");
-        while (alive.length < 6) {
-          alive.push(randomDetection(nextId++));
-        }
-        return alive;
       });
-    }, 1800);
+    }, 2500);
 
     return () => clearInterval(interval);
   }, []);
 
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" suppressHydrationWarning>
-      {/* Grid lines */}
-      <div className="absolute inset-0 opacity-[0.03]">
-        <div className="h-full w-full" style={{
-          backgroundImage: "linear-gradient(rgba(96,165,250,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(96,165,250,0.3) 1px, transparent 1px)",
-          backgroundSize: "80px 80px",
-        }} />
-      </div>
+      {/* Subtle grid */}
+      <div className="absolute inset-0 opacity-[0.02]" style={{
+        backgroundImage: "linear-gradient(rgba(96,165,250,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(96,165,250,0.4) 1px, transparent 1px)",
+        backgroundSize: "80px 80px",
+      }} />
 
-      {/* Detections */}
-      {detections.map((d) => (
+      {/* Detection cards */}
+      {cards.map((card) => (
         <div
-          key={d.id}
-          className="absolute transition-all duration-700"
+          key={card.id}
+          className="absolute transition-all duration-1000"
           style={{
-            left: `${d.x}%`,
-            top: `${d.y}%`,
-            width: `${d.w}%`,
-            height: `${d.h}%`,
-            opacity: d.phase === "scan" ? 0 : d.phase === "fade" ? 0 : 1,
+            left: `${card.x}%`,
+            top: `${card.y}%`,
+            opacity: card.phase === "entering" ? 0 : card.phase === "visible" ? 1 : 0,
+            transform: `rotate(${card.rotation}deg) scale(${card.phase === "entering" ? 0.8 : 1})`,
           }}
         >
-          {/* Bbox */}
-          <div
-            className="absolute inset-0 rounded-[2px] transition-colors duration-500"
-            style={{
-              border: `1px solid ${d.phase === "verify" ? "rgba(52,211,153,0.25)" : "rgba(96,165,250,0.2)"}`,
-              boxShadow: d.phase === "verify"
-                ? "0 0 20px rgba(52,211,153,0.05)"
-                : "0 0 20px rgba(96,165,250,0.03)",
-            }}
-          />
-
-          {/* Corner ticks */}
-          {["top-0 left-0 border-t border-l", "top-0 right-0 border-t border-r", "bottom-0 left-0 border-b border-l", "bottom-0 right-0 border-b border-r"].map((pos, i) => (
-            <div
-              key={i}
-              className={`absolute h-1.5 w-1.5 ${pos} transition-colors duration-500`}
-              style={{ borderColor: d.phase === "verify" ? "rgba(52,211,153,0.4)" : "rgba(96,165,250,0.3)" }}
-            />
-          ))}
-
-          {/* Label */}
-          {d.phase !== "scan" && (
-            <div
-              className="absolute -top-4 left-0 rounded-sm px-1 py-[1px] text-[8px] font-medium tracking-wide transition-colors duration-500 whitespace-nowrap"
-              style={{
-                backgroundColor: d.phase === "verify" ? "rgba(52,211,153,0.15)" : "rgba(96,165,250,0.1)",
-                color: d.phase === "verify" ? "rgba(52,211,153,0.5)" : "rgba(96,165,250,0.4)",
-              }}
-            >
-              {d.label}
+          {/* Image-like card with emoji content */}
+          <div className="relative w-20 h-16 rounded-lg bg-zinc-800/40 border border-zinc-700/20 overflow-hidden backdrop-blur-sm">
+            {/* Faded "image" content */}
+            <div className="absolute inset-0 flex items-center justify-center text-3xl opacity-20">
+              {card.emoji}
             </div>
-          )}
 
-          {/* Scan line */}
-          {d.phase === "detect" && (
-            <div className="absolute left-0 right-0 h-px bg-blue-400/10 animate-[scanline_1.5s_ease-in-out_infinite]" />
-          )}
+            {/* Bbox overlay */}
+            <div className="absolute inset-1 rounded-sm border border-blue-400/30">
+              <div className="absolute top-0 left-0 h-1 w-1 border-t border-l border-blue-400/50" />
+              <div className="absolute top-0 right-0 h-1 w-1 border-t border-r border-blue-400/50" />
+              <div className="absolute bottom-0 left-0 h-1 w-1 border-b border-l border-blue-400/50" />
+              <div className="absolute bottom-0 right-0 h-1 w-1 border-b border-r border-blue-400/50" />
+            </div>
+
+            {/* Label tag */}
+            <div className="absolute -top-3.5 left-0.5 rounded-sm bg-blue-500/20 px-1 py-[1px] text-[7px] font-mono text-blue-400/50 whitespace-nowrap">
+              {card.label}
+            </div>
+
+            {/* Confidence score */}
+            <div className="absolute bottom-0.5 right-0.5 text-[6px] font-mono text-emerald-400/30">
+              0.{85 + (card.id % 14)}
+            </div>
+          </div>
         </div>
       ))}
 
-      {/* Radial fade to make center readable */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(9,9,11,0.9)_0%,rgba(9,9,11,0.5)_60%,rgba(9,9,11,0.3)_100%)]" />
-
-      <style jsx>{`
-        @keyframes scanline {
-          0% { top: 0%; }
-          100% { top: 100%; }
-        }
-      `}</style>
+      {/* Radial fade for readability */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(9,9,11,0.85)_0%,rgba(9,9,11,0.4)_60%,rgba(9,9,11,0.2)_100%)]" />
     </div>
   );
 }
