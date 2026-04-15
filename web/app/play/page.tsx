@@ -155,16 +155,18 @@ function addTotalXP(xp: number): number {
 
 // Sample challenges — same data, same honeypot logic
 const SAMPLE_CHALLENGES: Challenge[] = [
-  { id: 1, imageUrl: "https://images.unsplash.com/photo-1566933293069-b55c7f326dd4?w=400", target: "car", aiPrediction: "YES", aiConfidence: 0.92, isHoneypot: true, groundTruth: "YES" },
-  { id: 2, imageUrl: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400", target: "car", aiPrediction: "NO", aiConfidence: 0.95, isHoneypot: true, groundTruth: "NO" },
-  { id: 3, imageUrl: "https://images.unsplash.com/photo-1517849845537-4d257902454a?w=400", target: "dog", aiPrediction: "YES", aiConfidence: 0.96, isHoneypot: true, groundTruth: "YES" },
-  { id: 4, imageUrl: "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=400", target: "dog", aiPrediction: "YES", aiConfidence: 0.88, isHoneypot: false },
-  { id: 5, imageUrl: "https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400", target: "dog", aiPrediction: "YES", aiConfidence: 0.78, isHoneypot: false },
-  { id: 6, imageUrl: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=400", target: "stop sign", aiPrediction: "NO", aiConfidence: 0.85, isHoneypot: false },
-  { id: 7, imageUrl: "https://images.unsplash.com/photo-1583337130417-13104dec14a4?w=400", target: "cat", aiPrediction: "YES", aiConfidence: 0.91, isHoneypot: false },
-  { id: 8, imageUrl: "https://images.unsplash.com/photo-1474511320723-9a56873571b7?w=400", target: "bird", aiPrediction: "YES", aiConfidence: 0.73, isHoneypot: false },
-  { id: 9, imageUrl: "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=400", target: "fire hydrant", aiPrediction: "NO", aiConfidence: 0.89, isHoneypot: false },
-  { id: 10, imageUrl: "https://images.unsplash.com/photo-1526336024174-e58f5cdd8e13?w=400", target: "cat", aiPrediction: "YES", aiConfidence: 0.84, isHoneypot: false },
+  // Honeypots — images MATCH their target+groundTruth
+  { id: 1, imageUrl: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=400", target: "car", aiPrediction: "YES", aiConfidence: 0.92, isHoneypot: true, groundTruth: "YES" },        // car photo → "is this a car?" → YES
+  { id: 2, imageUrl: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400", target: "car", aiPrediction: "NO", aiConfidence: 0.95, isHoneypot: true, groundTruth: "NO" },          // mountain photo → "is this a car?" → NO
+  { id: 3, imageUrl: "https://images.unsplash.com/photo-1517849845537-4d257902454a?w=400", target: "dog", aiPrediction: "YES", aiConfidence: 0.96, isHoneypot: true, groundTruth: "YES" },         // dog photo → "is this a dog?" → YES
+  { id: 4, imageUrl: "https://images.unsplash.com/photo-1526336024174-e58f5cdd8e13?w=400", target: "dog", aiPrediction: "NO", aiConfidence: 0.90, isHoneypot: true, groundTruth: "NO" },           // cat photo → "is this a dog?" → NO
+  // Real challenges — need human/agent verification
+  { id: 5, imageUrl: "https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400", target: "dog", aiPrediction: "YES", aiConfidence: 0.78, isHoneypot: false },            // dog photo
+  { id: 6, imageUrl: "https://images.unsplash.com/photo-1583337130417-13104dec14a4?w=400", target: "cat", aiPrediction: "YES", aiConfidence: 0.91, isHoneypot: false },           // cat photo
+  { id: 7, imageUrl: "https://images.unsplash.com/photo-1474511320723-9a56873571b7?w=400", target: "bird", aiPrediction: "YES", aiConfidence: 0.73, isHoneypot: false },          // bird photo
+  { id: 8, imageUrl: "https://images.unsplash.com/photo-1566933293069-b55c7f326dd4?w=400", target: "car", aiPrediction: "YES", aiConfidence: 0.88, isHoneypot: false },           // car photo
+  { id: 9, imageUrl: "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=400", target: "fire hydrant", aiPrediction: "NO", aiConfidence: 0.89, isHoneypot: false },   // bridge photo → no fire hydrant
+  { id: 10, imageUrl: "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=400", target: "cat", aiPrediction: "YES", aiConfidence: 0.84, isHoneypot: false },          // cat photo
 ];
 
 /* ------------------------------------------------------------------ */

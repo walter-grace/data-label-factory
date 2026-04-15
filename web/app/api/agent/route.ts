@@ -45,16 +45,18 @@ const pendingChallenges = new Map<string, PendingChallenge>();
 
 // Sample challenge pool
 const CHALLENGE_POOL = [
-  { imageUrl: "https://images.unsplash.com/photo-1566933293069-b55c7f326dd4?w=400", target: "car", isHoneypot: true, groundTruth: "YES" as const },
-  { imageUrl: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400", target: "car", isHoneypot: true, groundTruth: "NO" as const },
-  { imageUrl: "https://images.unsplash.com/photo-1517849845537-4d257902454a?w=400", target: "dog", isHoneypot: true, groundTruth: "YES" as const },
-  { imageUrl: "https://images.unsplash.com/photo-1526336024174-e58f5cdd8e13?w=400", target: "dog", isHoneypot: true, groundTruth: "NO" as const },
-  { imageUrl: "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=400", target: "cat", isHoneypot: false },
+  // Honeypots — known ground truth
+  { imageUrl: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=400", target: "car", isHoneypot: true, groundTruth: "YES" as const },         // car → YES
+  { imageUrl: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400", target: "car", isHoneypot: true, groundTruth: "NO" as const },           // mountain → NO
+  { imageUrl: "https://images.unsplash.com/photo-1517849845537-4d257902454a?w=400", target: "dog", isHoneypot: true, groundTruth: "YES" as const },          // dog → YES
+  { imageUrl: "https://images.unsplash.com/photo-1526336024174-e58f5cdd8e13?w=400", target: "dog", isHoneypot: true, groundTruth: "NO" as const },           // cat → NO
+  // Real challenges
   { imageUrl: "https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400", target: "dog", isHoneypot: false },
-  { imageUrl: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=400", target: "stop sign", isHoneypot: false },
   { imageUrl: "https://images.unsplash.com/photo-1583337130417-13104dec14a4?w=400", target: "cat", isHoneypot: false },
   { imageUrl: "https://images.unsplash.com/photo-1474511320723-9a56873571b7?w=400", target: "bird", isHoneypot: false },
+  { imageUrl: "https://images.unsplash.com/photo-1566933293069-b55c7f326dd4?w=400", target: "car", isHoneypot: false },
   { imageUrl: "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=400", target: "fire hydrant", isHoneypot: false },
+  { imageUrl: "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=400", target: "cat", isHoneypot: false },
 ];
 
 function getOrCreateAgent(agentId: string): Agent {
