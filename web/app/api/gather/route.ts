@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { image_search, SafeSearchType } from "duck-duck-scrape";
+import { searchImages } from "duck-duck-scrape";
 
 export const maxDuration = 60;
 
@@ -32,12 +32,7 @@ type ImageResult = { filename: string; url: string; path: string; source: string
 async function ddgSearch(query: string, max: number): Promise<ImageResult[]> {
   const images: ImageResult[] = [];
   try {
-    const results = await image_search({
-      query,
-      moderate: true,
-      iterations: 1,
-      retries: 2,
-    });
+    const results = await searchImages(query, { moderate: true });
 
     for (const r of results.results || []) {
       if (images.length >= max) break;
