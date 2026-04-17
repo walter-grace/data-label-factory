@@ -27,6 +27,12 @@ type Bbox = {
     ref_url?: string;   // URL to a reference image (for the live tracker sidebar)
     margin?: number;
     confident?: boolean;
+    price?: {
+        median?: number;
+        min?: number;
+        max?: number;
+        currency?: string;
+    } | null;
 };
 
 const FALCON_URL = process.env.FALCON_URL ?? "http://localhost:8500/api/falcon";
@@ -123,6 +129,7 @@ export async function POST(req: NextRequest) {
                     ref_url,
                     margin: typeof m.margin === "number" ? m.margin : undefined,
                     confident: typeof m.confident === "boolean" ? m.confident : undefined,
+                    price: m.price ?? null,
                 });
             }
         }

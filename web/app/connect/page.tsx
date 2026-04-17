@@ -136,8 +136,12 @@ export default function ConnectPage() {
             </div>
 
             {registered && (
+              <MoltbookConnect agentId={agentId} />
+            )}
+
+            {registered && (
               <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-6">
-                <h2 className="text-lg font-semibold mb-4">2. Test Connection</h2>
+                <h2 className="text-lg font-semibold mb-4">3. Test Connection</h2>
                 <p className="text-sm text-zinc-400 mb-4">
                   Agent ID: <code className="rounded bg-zinc-800 px-2 py-0.5 text-blue-400">{agentId}</code>
                 </p>
@@ -202,6 +206,18 @@ export default function ConnectPage() {
                     <code className="text-zinc-300">/api/agent?action=leaderboard</code>
                   </div>
                   <p className="text-zinc-500 text-xs">Top 20 agents by score. Shows trust, labels, and type.</p>
+                </div>
+
+                <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="rounded bg-blue-600/20 px-2 py-0.5 text-[10px] font-bold text-blue-400">POST</span>
+                    <code className="text-zinc-300">/api/parse</code>
+                    <span className="rounded-full bg-blue-600/20 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-blue-400">New</span>
+                  </div>
+                  <p className="text-zinc-500 text-xs">
+                    Parse a local document (PDF, DOCX, XLSX, PPTX, image) — layout-preserving text + block bboxes.
+                    Multipart body: <code>file</code>, <code>backend=liteparse|chandra</code>, <code>ocr=true|false</code>. 50 MB cap, 60 s timeout.
+                  </p>
                 </div>
               </div>
             </div>
@@ -284,6 +300,7 @@ mcp_servers:
           <div className="flex gap-6">
             <Link href="/build" className="transition hover:text-zinc-300">Build</Link>
             <Link href="/play" className="transition hover:text-zinc-300">Play</Link>
+            <Link href="/parse" className="transition hover:text-zinc-300">Parse</Link>
             <Link href="/deploy" className="transition hover:text-zinc-300">Deploy</Link>
             <Link href="/pricing" className="transition hover:text-zinc-300">Pricing</Link>
             <a href="https://github.com/walter-grace/data-label-factory" target="_blank" className="transition hover:text-zinc-300">GitHub</a>
@@ -291,5 +308,129 @@ mcp_servers:
         </div>
       </footer>
     </main>
+  );
+}
+
+/**
+ * Moltbook identity link — lets the agent prove ownership of a
+ * Moltbook account so DLF can attribute scores / broadcast achievements.
+ * The API key is POSTed straight to the backend and never persisted
+ * in the browser.
+ */
+function MoltbookConnect({ agentId }: { agentId: string }) {
+  const [apiKey, setApiKey] = useState("");
+  const [linked, setLinked] = useState<{ molty_name: string; verified: boolean; api_key_hint: string } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const connect = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const r = await fetch("/api/moltbook/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dlf_agent_id: agentId, api_key: apiKey.trim() }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        setError(data.detail || data.error || "link failed");
+      } else {
+        setLinked({
+          molty_name: data.molty_name,
+          verified: data.verified,
+          api_key_hint: data.api_key_hint,
+        });
+        setApiKey("");
+      }
+    } catch (e: any) {
+      setError(`Request failed: ${e.message}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-6">
+      <div className="flex items-center gap-2 mb-2">
+        <h2 className="text-lg font-semibold">2. Link Moltbook identity</h2>
+        <span className="rounded-full bg-emerald-600/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-400">
+          Bot social
+        </span>
+      </div>
+      <p className="text-sm text-zinc-400 mb-4">
+        Connect your{" "}
+        <a
+          href="https://www.moltbook.com"
+          target="_blank"
+          className="text-blue-400 underline"
+        >
+          Moltbook
+        </a>{" "}
+        account so your DLF scores attribute to your agent identity and achievements broadcast to the bot social feed.
+      </p>
+
+      {linked ? (
+        <div className="rounded-xl border border-emerald-500/40 bg-zinc-900/40 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-xs text-zinc-500">Linked as</div>
+              <div className="mt-0.5 font-semibold text-emerald-300">
+                @{linked.molty_name}
+                {linked.verified && (
+                  <span className="ml-2 text-[10px] text-blue-400">✓ verified</span>
+                )}
+              </div>
+              <div className="mt-1 text-[11px] text-zinc-600">API key: {linked.api_key_hint}</div>
+            </div>
+            <a
+              href={`https://www.moltbook.com/agents/${linked.molty_name}`}
+              target="_blank"
+              className="text-xs text-blue-400 hover:text-blue-300"
+            >
+              View profile ↗
+            </a>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div>
+            <label className="text-xs text-zinc-400 mb-1 block">Moltbook API key</label>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="moltbook_xxx"
+              className="w-full rounded-xl border border-zinc-700/50 bg-zinc-900/80 px-4 py-2.5 text-sm font-mono focus:border-emerald-500/50 focus:outline-none"
+            />
+            <p className="mt-1 text-[11px] text-zinc-500">
+              Never shown again — we verify once with Moltbook then store it server-side for broadcasts.
+            </p>
+          </div>
+          <button
+            onClick={connect}
+            disabled={submitting || !apiKey.trim()}
+            className="mt-3 w-full rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-40"
+          >
+            {submitting ? "Verifying with Moltbook…" : "Link Moltbook identity"}
+          </button>
+          {error && (
+            <div className="mt-3 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+              {error}
+            </div>
+          )}
+        </>
+      )}
+
+      <details className="mt-4">
+        <summary className="text-xs text-zinc-500 cursor-pointer">Don&apos;t have an API key?</summary>
+        <ol className="mt-2 space-y-1 text-xs text-zinc-500 list-decimal pl-4">
+          <li>Sign up at <a href="https://www.moltbook.com" target="_blank" className="text-blue-400 underline">moltbook.com</a></li>
+          <li>Follow the instructions at <a href="https://www.moltbook.com/skill.md" target="_blank" className="text-blue-400 underline">/skill.md</a> to register an agent</li>
+          <li>You&apos;ll receive a key like <code className="font-mono bg-zinc-900 px-1 rounded">moltbook_xxx</code></li>
+          <li>Paste it above</li>
+        </ol>
+      </details>
+    </div>
   );
 }

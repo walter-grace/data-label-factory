@@ -22,19 +22,18 @@ Configurable via env vars:
     PORT                  HTTP port (default: 8500)
 """
 
-from __future__ import annotations
-
 import argparse
 import io
 import os
+import re
 import sys
 import threading
 import time
 import traceback
-from typing import Any
+from typing import Any, List, Optional
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="data_label_factory.identify serve",
         description=(
@@ -59,6 +58,12 @@ def main(argv: list[str] | None = None) -> int:
                         default=float(os.environ.get("YOLO_CONF", "0.05")))
     parser.add_argument("--no-yolo", action="store_true",
                         help="Skip YOLO detection entirely; always classify the center crop")
+    parser.add_argument("--prices", default=os.environ.get("CARD_PRICES", "card_prices.json"),
+                        help="Optional path to card_prices.json (from `scrape_prices`); "
+                             "when present, every detection includes a price field")
+    parser.add_argument("--omniparser", default=os.environ.get("OMNIPARSER_MODEL", ""),
+                        help="Path to OmniParser icon_detect/model.pt for UI element detection. "
+                             "When present, /api/webui/* uses this instead of YOLOv8-World.")
     args = parser.parse_args(argv)
 
     try:
@@ -125,6 +130,62 @@ def main(argv: list[str] | None = None) -> int:
     CARD_FILES = list(npz["filenames"]) if "filenames" in npz.files else ["" for _ in CARD_NAMES]
     print(f"[serve] loaded {len(CARD_NAMES)} refs from {args.index}", flush=True)
 
+    # ---------- load optional price cache ----------
+    PRICES: dict = {}
+    PRICE_CURRENCY: str = "USD"
+    if args.prices and os.path.exists(args.prices):
+        import json
+        try:
+            with open(args.prices) as f:
+                price_data = json.load(f)
+            PRICES = price_data.get("prices", {})
+            PRICE_CURRENCY = price_data.get("currency", "USD")
+            print(f"[serve] loaded prices for {len(PRICES)} cards from {args.prices} "
+                  f"(currency={PRICE_CURRENCY}, scraped {price_data.get('scraped_at','?')})",
+                  flush=True)
+        except Exception as e:
+            print(f"[serve] could not load prices from {args.prices}: {e}", flush=True)
+    else:
+        print(f"[serve] no price cache at {args.prices} — prices disabled", flush=True)
+
+    # Minimal FX conversion. JPY→USD rate from env (CARD_PRICES_FX_USD_PER_JPY)
+    # so it can be refreshed without touching code; defaults to 1/150 ≈ ¥150/$.
+    _FX_USD_PER_JPY = float(os.environ.get("CARD_PRICES_FX_USD_PER_JPY", str(1.0 / 150.0)))
+
+    def _to_usd(price: Optional[float]) -> Optional[float]:
+        if price is None:
+            return None
+        if PRICE_CURRENCY.upper() == "USD":
+            return float(price)
+        if PRICE_CURRENCY.upper() == "JPY":
+            return round(float(price) * _FX_USD_PER_JPY, 2)
+        return float(price)  # unknown currency — pass through
+
+    def _price_for_filename(fname: str) -> Optional[dict]:
+        """Look up a price by reference filename. Filenames look like
+        'LOCR-JP066_number_65_djinn_buster_pscr.jpg' — extract the set code
+        prefix and look it up in the cache."""
+        if not PRICES or not fname:
+            return None
+        m = re.match(r"^([A-Z]+-[A-Z]+\d+)_", fname)
+        if not m:
+            return None
+        code = m.group(1)
+        info = PRICES.get(code)
+        if not info:
+            return None
+        return {
+            "code":       code,
+            "median":     info.get("median"),
+            "min":        info.get("min"),
+            "max":        info.get("max"),
+            "currency":   PRICE_CURRENCY,
+            "name_jp":    info.get("name_jp", ""),
+            "usd_median": _to_usd(info.get("median")),
+            "usd_min":    _to_usd(info.get("min")),
+            "usd_max":    _to_usd(info.get("max")),
+        }
+
     # ---------- optional YOLO for multi-card detection ----------
     yolo = None
     if not args.no_yolo:
@@ -137,13 +198,48 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as e:
             print(f"[serve] YOLO unavailable ({e}); using whole-frame mode only", flush=True)
 
+    # ---------- optional OmniParser for webui detection ----------
+    omniparser = None
+    if args.omniparser and os.path.exists(args.omniparser):
+        try:
+            if args.omniparser.endswith(".npz"):
+                # MLX path — use yolov8_mlx (2x faster than ultralytics CPU)
+                mlx_dir = os.path.join(os.path.dirname(os.path.abspath(args.omniparser)), "")
+                if mlx_dir not in sys.path:
+                    sys.path.insert(0, os.path.dirname(mlx_dir.rstrip("/")))
+                # Try importing from the vision-inspector package
+                try:
+                    sys.path.insert(0, "/private/tmp/mac-code-fresh/research/vision-inspector")
+                    try:
+                        from yolo11_mlx import YOLO11 as _MLX_YOLO
+                    except ImportError:
+                        from yolov8_mlx import YOLOv8 as _MLX_YOLO  # local fallback
+                    print(f"[serve] loading OmniParser MLX from {args.omniparser} …", flush=True)
+                    omniparser = _MLX_YOLO(args.omniparser)
+                    print(f"[serve]   omniparser MLX ready (~170ms/frame vs 400ms ultralytics)", flush=True)
+                except ImportError as ie:
+                    print(f"[serve] yolov8_mlx not available ({ie}); falling back to ultralytics", flush=True)
+                    from ultralytics import YOLO as _YOLO
+                    # Can't load .npz with ultralytics, skip
+                    omniparser = None
+            else:
+                # Standard .pt path — use ultralytics
+                from ultralytics import YOLO as _YOLO
+                print(f"[serve] loading OmniParser from {args.omniparser} …", flush=True)
+                omniparser = _YOLO(args.omniparser)
+                print(f"[serve]   omniparser ready (classes={omniparser.names})", flush=True)
+        except Exception as e:
+            print(f"[serve] OmniParser failed to load ({e}); webui will use YOLOv8-World fallback", flush=True)
+    else:
+        print(f"[serve] no OmniParser model — webui will use YOLOv8-World open-vocab fallback", flush=True)
+
     # ---------- helpers ----------
     RARITY_SUFFIXES = {
         "pscr": "PScR", "scr": "ScR", "ur": "UR", "sr": "SR",
         "op": "OP", "utr": "UtR", "cr": "CR", "ea": "EA", "gmr": "GMR",
     }
 
-    def _split_name_and_rarity(full: str) -> tuple[str, str]:
+    def _split_name_and_rarity(full: str):
         parts = full.split()
         if parts and parts[-1].lower() in RARITY_SUFFIXES:
             return " ".join(parts[:-1]), RARITY_SUFFIXES[parts[-1].lower()]
@@ -185,6 +281,13 @@ def main(argv: list[str] | None = None) -> int:
         app.mount("/refs", StaticFiles(directory=args.refs), name="refs")
         print(f"[serve] mounted /refs/ from {args.refs}", flush=True)
 
+    # ---------- agent gateway (SSE event bus) ----------
+    from data_label_factory.identify.gateway import AgentGateway, install as install_gateway
+    gateway = AgentGateway(ttl_s=10.0)
+    install_gateway(app, gateway)
+    print(f"[serve] agent gateway mounted: GET /api/agent/stream  (SSE), "
+          f"POST /api/agent/buy, GET /.well-known/agent-gateway.json", flush=True)
+
     _state = {"requests": 0, "last_query": ""}
     _lock = threading.Lock()
 
@@ -225,7 +328,7 @@ def main(argv: list[str] | None = None) -> int:
         with _lock:
             _state["last_query"] = query
 
-        masks: list[dict] = []
+        masks = []
 
         # 1. YOLO multi-card detection (if available)
         if yolo is not None:
@@ -247,6 +350,16 @@ def main(argv: list[str] | None = None) -> int:
                             display = f"{name} ({rarity})" if rarity else name
                             if not info["confident"]:
                                 display = f"{display}?"
+                            price_info = _price_for_filename(info["best_filename"])
+                            listing_id = gateway.publish(
+                                label=name,
+                                rarity=rarity,
+                                ref_filename=info["best_filename"],
+                                set_code=(price_info or {}).get("code", ""),
+                                price_usd=(price_info or {}).get("usd_median"),
+                                price_jpy=(price_info or {}).get("median"),
+                                confident=info["confident"],
+                            )
                             masks.append({
                                 "bbox_norm": {
                                     "x1": float(x1) / W, "y1": float(y1) / H,
@@ -261,6 +374,8 @@ def main(argv: list[str] | None = None) -> int:
                                 "margin": info["margin"],
                                 "confident": info["confident"],
                                 "ref_filename": info["best_filename"],
+                                "price":        price_info,
+                                "listing_id":   listing_id,
                             })
             except Exception as e:
                 print(f"[serve] yolo error: {e}", flush=True)
@@ -274,19 +389,31 @@ def main(argv: list[str] | None = None) -> int:
             if info["best_score"] >= args.sim_threshold and info["confident"]:
                 name, rarity = _split_name_and_rarity(info["best_name"])
                 display = f"{name} ({rarity})" if rarity else name
+                price_info = _price_for_filename(info["best_filename"])
+                listing_id = gateway.publish(
+                    label=name,
+                    rarity=rarity,
+                    ref_filename=info["best_filename"],
+                    set_code=(price_info or {}).get("code", ""),
+                    price_usd=(price_info or {}).get("usd_median"),
+                    price_jpy=(price_info or {}).get("median"),
+                    confident=True,
+                )
                 masks.append({
                     "bbox_norm": {
                         "x1": cx1 / W, "y1": cy1 / H, "x2": cx2 / W, "y2": cy2 / H,
                     },
                     "area_fraction": (cx2 - cx1) * (cy2 - cy1) / max(W * H, 1),
-                    "label": display,
-                    "name": name,
-                    "rarity": rarity,
-                    "score": info["best_score"],
-                    "top_k": info["top"],
-                    "margin": info["margin"],
-                    "confident": True,
+                    "label":        display,
+                    "name":         name,
+                    "rarity":       rarity,
+                    "score":        info["best_score"],
+                    "top_k":        info["top"],
+                    "margin":       info["margin"],
+                    "confident":    True,
                     "ref_filename": info["best_filename"],
+                    "price":        price_info,
+                    "listing_id":   listing_id,
                 })
 
         with _lock:
@@ -299,6 +426,159 @@ def main(argv: list[str] | None = None) -> int:
             "query": query,
             "elapsed_seconds": round(time.time() - t0, 3),
         })
+
+    # ---------- webui endpoints (/api/webui/*) ----------
+    from data_label_factory.identify.webui import (
+        detect_ui_elements, map_to_dom, diff_detections, DEFAULT_WEB_UI_CLASSES,
+        JS_COLLECT_ALL_ELEMENTS, JS_COLLECT_COMPUTED_STYLES, JS_COLLECT_ACCESSIBILITY_TREE,
+    )
+
+    @app.post("/api/webui/detect")
+    async def webui_detect(
+        image: UploadFile = File(...),
+        classes: str = Form(""),
+        conf: float = Form(0.15),
+        dpr: float = Form(1.0),
+    ) -> JSONResponse:
+        """Detect UI elements on a website screenshot using YOLOv8-World."""
+        t0 = time.time()
+        if yolo is None:
+            raise HTTPException(503, "YOLO not loaded — start with --no-yolo=false")
+        try:
+            pil = Image.open(io.BytesIO(await image.read())).convert("RGB")
+        except Exception as e:
+            raise HTTPException(400, f"bad image: {e}")
+        cls_list = [c.strip() for c in classes.split(",") if c.strip()] or None
+        with _lock:
+            elements = detect_ui_elements(pil, yolo, classes=cls_list, conf=conf, omniparser_model=omniparser)
+        return JSONResponse(content={
+            "ok": True,
+            "count": len(elements),
+            "elements": [e.to_dict() for e in elements],
+            "classes_used": cls_list or DEFAULT_WEB_UI_CLASSES,
+            "image_size": list(pil.size),
+            "elapsed_seconds": round(time.time() - t0, 3),
+        })
+
+    @app.post("/api/webui/map")
+    async def webui_map(
+        image: UploadFile = File(...),
+        dom_bounds: str = Form(...),
+        classes: str = Form(""),
+        conf: float = Form(0.15),
+        dpr: float = Form(1.0),
+        iou_threshold: float = Form(0.3),
+    ) -> JSONResponse:
+        """Detect UI elements and map them to DOM elements via IoU."""
+        t0 = time.time()
+        if yolo is None:
+            raise HTTPException(503, "YOLO not loaded — start with --no-yolo=false")
+        try:
+            pil = Image.open(io.BytesIO(await image.read())).convert("RGB")
+        except Exception as e:
+            raise HTTPException(400, f"bad image: {e}")
+        import json as _json
+        try:
+            dom_list = _json.loads(dom_bounds)
+        except Exception as e:
+            raise HTTPException(400, f"bad dom_bounds JSON: {e}")
+        cls_list = [c.strip() for c in classes.split(",") if c.strip()] or None
+        with _lock:
+            elements = detect_ui_elements(pil, yolo, classes=cls_list, conf=conf, omniparser_model=omniparser)
+        mapped = map_to_dom(elements, dom_list, iou_threshold=iou_threshold, dpr=dpr)
+        return JSONResponse(content={
+            "ok": True,
+            "count": len(mapped),
+            "mapped": [m.to_dict() for m in mapped],
+            "unmatched": len(elements) - len(mapped),
+            "classes_used": cls_list or DEFAULT_WEB_UI_CLASSES,
+            "image_size": list(pil.size),
+            "elapsed_seconds": round(time.time() - t0, 3),
+        })
+
+    @app.get("/api/webui/classes")
+    def webui_classes() -> JSONResponse:
+        """Return the default web UI class vocabulary."""
+        return JSONResponse(content={
+            "classes": DEFAULT_WEB_UI_CLASSES,
+            "count": len(DEFAULT_WEB_UI_CLASSES),
+        })
+
+    @app.post("/api/webui/diff")
+    async def webui_diff(
+        before: UploadFile = File(...),
+        after: UploadFile = File(...),
+        conf: float = Form(0.05),
+    ) -> JSONResponse:
+        """Compare two screenshots and report added/removed/moved UI elements."""
+        t0 = time.time()
+        if omniparser is None and yolo is None:
+            raise HTTPException(503, "no detection model loaded")
+        try:
+            pil_before = Image.open(io.BytesIO(await before.read())).convert("RGB")
+            pil_after = Image.open(io.BytesIO(await after.read())).convert("RGB")
+        except Exception as e:
+            raise HTTPException(400, f"bad image: {e}")
+        with _lock:
+            els_before = detect_ui_elements(pil_before, yolo, conf=conf, omniparser_model=omniparser)
+            els_after = detect_ui_elements(pil_after, yolo, conf=conf, omniparser_model=omniparser)
+        result = diff_detections(els_before, els_after)
+        return JSONResponse(content={
+            "ok": True,
+            **result.to_dict(),
+            "elapsed_seconds": round(time.time() - t0, 3),
+        })
+
+    @app.post("/api/webui/structure")
+    async def webui_structure(
+        image: UploadFile = File(...),
+        dom_all: str = Form(...),
+        conf: float = Form(0.05),
+        dpr: float = Form(1.0),
+    ) -> JSONResponse:
+        """Map OmniParser detections against ALL DOM elements (structural view).
+        Like /api/webui/map but accepts the full DOM tree, not just interactive."""
+        t0 = time.time()
+        try:
+            pil = Image.open(io.BytesIO(await image.read())).convert("RGB")
+        except Exception as e:
+            raise HTTPException(400, f"bad image: {e}")
+        import json as _json
+        try:
+            dom_list = _json.loads(dom_all)
+        except Exception as e:
+            raise HTTPException(400, f"bad dom_all JSON: {e}")
+        with _lock:
+            elements = detect_ui_elements(pil, yolo, conf=conf, omniparser_model=omniparser)
+        mapped = map_to_dom(elements, dom_list, iou_threshold=0.2, dpr=dpr)
+        # Also include DOM elements that had no YOLO match (structural-only)
+        matched_selectors = {m.selector for m in mapped}
+        structural_only = [
+            d for d in dom_list
+            if d.get("selector", "") not in matched_selectors
+            and (d.get("x2", 0) - d.get("x1", 0)) * (d.get("y2", 0) - d.get("y1", 0)) > 100
+        ]
+        return JSONResponse(content={
+            "ok": True,
+            "detected_and_mapped": [m.to_dict() for m in mapped],
+            "structural_only_count": len(structural_only),
+            "structural_only": structural_only[:200],
+            "total_dom_elements": len(dom_list),
+            "image_size": list(pil.size),
+            "elapsed_seconds": round(time.time() - t0, 3),
+        })
+
+    @app.get("/api/webui/scripts")
+    def webui_scripts() -> JSONResponse:
+        """Return JS snippets agents should run in the browser to collect data."""
+        return JSONResponse(content={
+            "collect_all_elements": JS_COLLECT_ALL_ELEMENTS,
+            "collect_computed_styles": JS_COLLECT_COMPUTED_STYLES,
+            "collect_accessibility_tree": JS_COLLECT_ACCESSIBILITY_TREE,
+        })
+
+    print(f"[serve] webui endpoints mounted: /api/webui/detect, /map, /diff, "
+          f"/structure, /scripts, /classes", flush=True)
 
     print(f"\n[serve] listening on http://{args.host}:{args.port}", flush=True)
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")

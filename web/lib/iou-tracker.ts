@@ -13,6 +13,15 @@ export type Detection = {
     score?: number;
     label?: string;
     ref_url?: string;
+    price?: {
+        median?: number;
+        min?: number;
+        max?: number;
+        currency?: string;
+        usd_median?: number;
+        usd_min?: number;
+        usd_max?: number;
+    } | null;
 };
 
 export type Track = Detection & {
@@ -105,6 +114,7 @@ export class IoUTracker {
             t.score = d.score ?? t.score;
             t.label = d.label ?? t.label;
             t.ref_url = d.ref_url ?? t.ref_url;
+            t.price = d.price ?? t.price;
             t.age += 1;
             t.hits += 1;
             t.framesSinceSeen = 0;

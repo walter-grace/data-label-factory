@@ -454,6 +454,9 @@ export default function DeployPage() {
             <Link href="/label" className="transition hover:text-white">
               Label
             </Link>
+            <Link href="/parse" className="transition hover:text-white">
+              Parse
+            </Link>
             <Link
               href="/deploy"
               className="text-white font-medium"
@@ -1012,6 +1015,12 @@ export default function DeployPage() {
               className="transition hover:text-zinc-300"
             >
               Label
+            </Link>
+            <Link
+              href="/parse"
+              className="transition hover:text-zinc-300"
+            >
+              Parse
             </Link>
             <Link
               href="/deploy"

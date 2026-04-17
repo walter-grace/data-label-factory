@@ -124,3 +124,4 @@ from . import chandra as _chandra       # noqa: E402, F401
 from . import wilddet3d as _wd3d        # noqa: E402, F401
 from . import flywheel as _flywheel     # noqa: E402, F401
 from . import openrouter as _openrouter # noqa: E402, F401
+from . import liteparse as _liteparse   # noqa: E402, F401

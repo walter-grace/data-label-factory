@@ -37,9 +37,18 @@ manifest.json
 
 # Secrets
 .env
+.env.*
 .env.local
 *.pem
 *.key
+.storage_tokens.json
+.moltbook_links.json
+
+# Ephemeral data
+.dlf_communities/
+projects/templates/user/
+eng.traineddata
+web/middleware.ts.bak
 
 # OS
 .DS_Store

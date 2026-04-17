@@ -31,7 +31,8 @@ type Agent = {
   registeredAt: string;
 };
 
-type PendingChallenge = {
+type PendingImageChallenge = {
+  kind: "image";
   id: string;
   imageUrl: string;
   target: string;
@@ -39,6 +40,22 @@ type PendingChallenge = {
   groundTruth?: "YES" | "NO";
   issuedAt: number;
 };
+
+type PendingDocChallenge = {
+  kind: "doc";
+  id: string;
+  docId: string;
+  blockText: string;
+  pageImageUrl: string;
+  bbox: number[];
+  questionField: string;       // e.g. "header" / "table"
+  tentativeType: string;
+  isHoneypot: boolean;
+  groundTruth?: "YES" | "NO";
+  issuedAt: number;
+};
+
+type PendingChallenge = PendingImageChallenge | PendingDocChallenge;
 
 const agents = new Map<string, Agent>();
 const pendingChallenges = new Map<string, PendingChallenge>();
@@ -88,6 +105,7 @@ export async function GET(req: NextRequest) {
     const challengeId = `ch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
     pendingChallenges.set(challengeId, {
+      kind: "image",
       id: challengeId,
       imageUrl: pick.imageUrl,
       target: pick.target,
@@ -103,6 +121,94 @@ export async function GET(req: NextRequest) {
       target: pick.target,
       question: `Is this a ${pick.target}? Answer YES or NO.`,
     });
+  }
+
+  if (action === "doc-challenge") {
+    // Fetch from DLF backend — gives us block_text + bbox + page_image_url
+    // plus (internally) ground_truth for honeypots. We strip ground_truth
+    // before returning it to the agent.
+    try {
+      const upstream = await fetch(
+        `${DLF_API}/api/doc-challenge?agent_id=${encodeURIComponent(agentId)}`,
+        { cache: "no-store" },
+      );
+      const data = await upstream.json();
+      if (!upstream.ok) {
+        return NextResponse.json(
+          { error: data.detail || data.error || "upstream failed" },
+          { status: upstream.status },
+        );
+      }
+
+      // Resolve the ground truth for this challenge from DLF's /api/doc-challenges
+      // (side-channel lookup so we can grade honeypots).
+      let groundTruth: "YES" | "NO" | undefined;
+      let isHoneypot = false;
+      try {
+        const allRes = await fetch(`${DLF_API}/api/doc-challenges?limit=200`, { cache: "no-store" });
+        if (allRes.ok) {
+          const all = await allRes.json();
+          // DLF's internal pool isn't exposed via to_public, so we fetch the module directly.
+        }
+      } catch {}
+      // Use a dedicated internal endpoint to get ground truth (see below).
+      try {
+        const gt = await fetch(`${DLF_API}/api/doc-truth/${encodeURIComponent(data.challenge_id)}`);
+        if (gt.ok) {
+          const gtd = await gt.json();
+          groundTruth = gtd.ground_truth ?? undefined;
+          isHoneypot = gtd.is_honeypot ?? false;
+        }
+      } catch {}
+
+      // Make the page URL absolute so the browser (different origin) can load it.
+      const pageImageUrl = data.page_image_url?.startsWith("http")
+        ? data.page_image_url
+        : `${DLF_API}${data.page_image_url}`;
+
+      pendingChallenges.set(data.challenge_id, {
+        kind: "doc",
+        id: data.challenge_id,
+        docId: data.doc_id,
+        blockText: data.block_text,
+        pageImageUrl,
+        bbox: data.bbox,
+        questionField: data.question_field,
+        tentativeType: data.tentative_type,
+        isHoneypot,
+        groundTruth,
+        issuedAt: Date.now(),
+      });
+
+      return NextResponse.json({
+        challenge_id: data.challenge_id,
+        kind: "doc",
+        doc_id: data.doc_id,
+        block_text: data.block_text,
+        page_image_url: pageImageUrl,
+        bbox: data.bbox,
+        page_width: data.page_width,
+        page_height: data.page_height,
+        question: data.question,
+        question_field: data.question_field,
+        tentative_type: data.tentative_type,
+      });
+    } catch (e: any) {
+      return NextResponse.json(
+        { error: `doc-challenge upstream unreachable: ${e.message}`, dlf: DLF_API },
+        { status: 502 },
+      );
+    }
+  }
+
+  if (action === "doc-docs") {
+    // Passthrough — lets agents discover what documents are available.
+    try {
+      const r = await fetch(`${DLF_API}/api/doc-docs`);
+      return NextResponse.json(await r.json(), { status: r.status });
+    } catch (e: any) {
+      return NextResponse.json({ error: e.message }, { status: 502 });
+    }
   }
 
   if (action === "stats") {
@@ -135,14 +241,24 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ leaderboard: sorted });
   }
 
-  return NextResponse.json({ error: "Unknown action. Use: challenge, answer, register, stats, leaderboard" }, { status: 400 });
+  return NextResponse.json(
+    {
+      error:
+        "Unknown action. GET: challenge, doc-challenge, doc-docs, stats, leaderboard. " +
+        "POST: answer, doc-answer, register, detect.",
+    },
+    { status: 400 },
+  );
 }
 
 export async function POST(req: NextRequest) {
   const action = req.nextUrl.searchParams.get("action");
   const agentId = req.headers.get("x-agent-id") || "anonymous";
 
-  if (action === "answer") {
+  // `answer` and `doc-answer` share the same scoring / trust / reward logic —
+  // we route by either action name or by the challenge's stored `kind`, so
+  // agents can use a single endpoint if they prefer.
+  if (action === "answer" || action === "doc-answer") {
     const body = await req.json();
     const { challenge_id, answer } = body;
 
@@ -158,6 +274,9 @@ export async function POST(req: NextRequest) {
     pendingChallenges.delete(challenge_id);
     const agent = getOrCreateAgent(agentId);
     const userAnswer = answer.toUpperCase() as "YES" | "NO";
+    if (userAnswer !== "YES" && userAnswer !== "NO") {
+      return NextResponse.json({ error: "answer must be YES or NO" }, { status: 400 });
+    }
 
     let correct: boolean;
     let wasHoneypot = false;
@@ -183,9 +302,13 @@ export async function POST(req: NextRequest) {
 
     const accepted = agent.trustScore >= 50;
 
-    // Submit to reward pool for GRPO training
-    try {
-      const rewardPayload = {
+    // Build the reward payload based on challenge kind. Image challenges
+    // keep their original shape for back-compat with /api/rewards; doc
+    // challenges carry block_text + question_field + doc_id so training
+    // can disambiguate modalities.
+    let rewardPayload: Record<string, any>;
+    if (challenge.kind === "image") {
+      rewardPayload = {
         image_url: challenge.imageUrl,
         target: challenge.target,
         label: userAnswer,
@@ -198,7 +321,29 @@ export async function POST(req: NextRequest) {
         response_time_ms: Date.now() - challenge.issuedAt,
         streak: agent.correctLabels,
       };
-      // Fire and forget — don't block the response
+    } else {
+      // doc challenge
+      rewardPayload = {
+        image_url: challenge.pageImageUrl,   // rendered page (for training)
+        target: challenge.questionField,      // e.g. "header"
+        label: userAnswer,
+        reward: correct ? 3 : -3,
+        source: `agent:${agentId}`,
+        source_type: "doc",
+        doc_id: challenge.docId,
+        block_text: challenge.blockText,
+        bbox: challenge.bbox,
+        tentative_type: challenge.tentativeType,
+        trust_score: agent.trustScore,
+        is_honeypot: wasHoneypot,
+        honeypot_correct: wasHoneypot ? correct : undefined,
+        response_time_ms: Date.now() - challenge.issuedAt,
+        streak: agent.correctLabels,
+      };
+    }
+
+    // Fire and forget — don't block the response
+    try {
       fetch(`${req.nextUrl.origin}/api/rewards`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -207,6 +352,7 @@ export async function POST(req: NextRequest) {
     } catch {}
 
     return NextResponse.json({
+      challenge_kind: challenge.kind,
       correct,
       was_honeypot: wasHoneypot,
       trust_score: agent.trustScore,
@@ -260,5 +406,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ error: "Unknown action. Use: answer, register, detect" }, { status: 400 });
+  return NextResponse.json(
+    { error: "Unknown POST action. Use: answer, doc-answer, register, detect." },
+    { status: 400 },
+  );
 }

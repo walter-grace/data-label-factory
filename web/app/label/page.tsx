@@ -299,6 +299,7 @@ export default function LabelPage() {
             <Link href="/build" className="transition hover:text-white">Build</Link>
             <Link href="/train" className="transition hover:text-white">Train</Link>
             <Link href="/label" className="text-white">Label</Link>
+            <Link href="/parse" className="transition hover:text-white">Parse</Link>
             <Link href="/deploy" className="transition hover:text-white">Deploy</Link>
             <Link href="/pricing" className="transition hover:text-white">Pricing</Link>
             <a href="https://github.com/walter-grace/data-label-factory" target="_blank" className="transition hover:text-white">GitHub</a>

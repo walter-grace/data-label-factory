@@ -91,6 +91,7 @@ export default function Home() {
             <Link href="/build" className="transition hover:text-white">Build</Link>
             <Link href="/train" className="transition hover:text-white">Train</Link>
             <Link href="/label" className="transition hover:text-white">Label</Link>
+            <Link href="/parse" className="transition hover:text-white">Parse</Link>
             <Link href="/deploy" className="transition hover:text-white">Deploy</Link>
             <Link href="/pricing" className="transition hover:text-white">Pricing</Link>
             <a href="https://github.com/walter-grace/data-label-factory" target="_blank" className="transition hover:text-white">GitHub</a>
@@ -211,6 +212,72 @@ export default function Home() {
                 </ScrollReveal>
               ))}
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Input modalities */}
+      <section className="border-t border-zinc-800/50 py-16">
+        <div className="mx-auto max-w-5xl px-6">
+          <ScrollReveal>
+            <div className="text-center">
+              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+                Any input, one pipeline
+              </h2>
+              <p className="mt-3 text-zinc-400">
+                Images, video, webcam, documents — all feed the same model training loop.
+              </p>
+            </div>
+          </ScrollReveal>
+
+          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              {
+                title: "Images",
+                desc: "Upload or URL-import. Falcon + Gemma label each image.",
+                href: "/build",
+                cta: "Build dataset",
+              },
+              {
+                title: "Video + Webcam",
+                desc: "Live tracker with IoU tracking. Extract frames for training.",
+                href: "/deploy",
+                cta: "Open live tracker",
+              },
+              {
+                title: "Documents",
+                badge: "New",
+                desc: "PDF, DOCX, XLSX, PPTX. LiteParse extracts layout blocks + bboxes.",
+                href: "/parse",
+                cta: "Parse a document",
+              },
+              {
+                title: "Agent API",
+                desc: "MCP tools + REST. Agents register, play Flywheel, earn trust.",
+                href: "/connect",
+                cta: "Connect an agent",
+              },
+            ].map((item, i) => (
+              <ScrollReveal key={i} delay={i * 0.08} direction="up">
+                <Link
+                  href={item.href}
+                  className="group block h-full rounded-2xl border border-zinc-800 bg-zinc-900/30 p-5 transition hover:border-blue-600/50 hover:bg-zinc-900/60"
+                >
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold">{item.title}</h3>
+                    {item.badge && (
+                      <span className="rounded-full bg-blue-600/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-400">
+                        {item.badge}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-2 text-sm text-zinc-400">{item.desc}</p>
+                  <div className="mt-3 text-sm font-medium text-blue-400 transition group-hover:text-blue-300">
+                    {item.cta} &rarr;
+                  </div>
+                </Link>
+              </ScrollReveal>
+            ))}
           </div>
         </div>
       </section>
@@ -407,6 +474,7 @@ export default function Home() {
             <Link href="/build" className="transition hover:text-zinc-300">Build</Link>
             <Link href="/train" className="transition hover:text-zinc-300">Train</Link>
             <Link href="/label" className="transition hover:text-zinc-300">Label</Link>
+            <Link href="/parse" className="transition hover:text-zinc-300">Parse</Link>
             <Link href="/deploy" className="transition hover:text-zinc-300">Deploy</Link>
             <Link href="/pricing" className="transition hover:text-zinc-300">Pricing</Link>
             <a href="https://github.com/walter-grace/data-label-factory" target="_blank" className="transition hover:text-zinc-300">GitHub</a>

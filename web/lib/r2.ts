@@ -63,7 +63,7 @@ export async function listAll(prefix: string): Promise<string[]> {
     const out: string[] = [];
     let continuationToken: string | undefined = undefined;
     do {
-        const resp = await getClient().send(
+        const resp: any = await getClient().send(
             new ListObjectsV2Command({
                 Bucket: R2_BUCKET,
                 Prefix: prefix,

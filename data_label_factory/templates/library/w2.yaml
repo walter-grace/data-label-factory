@@ -1,0 +1,135 @@
+# IRS Form W-2 — Wage and Tax Statement.
+# Coordinates approximate the 2023+ single-copy layout on a US letter
+# page. The W-2 is rigidly structured: box a-f for ID fields top-left,
+# numbered boxes 1-14 in a grid on the right half, state/local at the
+# bottom. Users typically only need to tweak a few pixels after import.
+
+name: w2
+display_name: IRS W-2 (Wage & Tax Statement)
+description: Employee W-2 with wages, federal/state withholding, SSN, EIN, and employer/employee identity blocks.
+doc_type: tax_form_w2
+page_size: [612, 792]
+
+fields:
+  - name: employee_ssn
+    label: "Box a — Employee SSN"
+    bbox: [370, 55, 572, 78]
+    type: text
+    required: true
+    anchor_text: "social security number"
+
+  - name: employer_ein
+    label: "Box b — Employer EIN"
+    bbox: [40, 90, 340, 115]
+    type: text
+    required: true
+    anchor_text: "Employer identification"
+
+  - name: employer_name
+    label: "Box c — Employer Name"
+    bbox: [40, 122, 340, 146]
+    type: text
+    required: true
+    anchor_text: null
+
+  - name: employer_address
+    label: "Box c — Employer Address"
+    bbox: [40, 148, 340, 200]
+    type: text
+    required: true
+    anchor_text: null
+
+  - name: control_number
+    label: "Box d — Control Number"
+    bbox: [40, 208, 340, 232]
+    type: text
+    required: false
+    anchor_text: "Control number"
+
+  - name: employee_name
+    label: "Box e — Employee Name"
+    bbox: [40, 248, 340, 272]
+    type: text
+    required: true
+    anchor_text: null
+
+  - name: employee_address
+    label: "Box f — Employee Address"
+    bbox: [40, 274, 340, 330]
+    type: text
+    required: true
+    anchor_text: null
+
+  - name: wages_box1
+    label: "Box 1 — Wages, tips, other comp"
+    bbox: [370, 90, 480, 115]
+    type: currency
+    required: true
+    anchor_text: "Wages, tips"
+
+  - name: federal_tax_withheld_box2
+    label: "Box 2 — Federal income tax withheld"
+    bbox: [488, 90, 572, 115]
+    type: currency
+    required: true
+    anchor_text: "Federal income tax"
+
+  - name: social_security_wages_box3
+    label: "Box 3 — Social security wages"
+    bbox: [370, 122, 480, 146]
+    type: currency
+    required: true
+    anchor_text: "Social security wages"
+
+  - name: social_security_tax_box4
+    label: "Box 4 — Social security tax"
+    bbox: [488, 122, 572, 146]
+    type: currency
+    required: false
+    anchor_text: "Social security tax"
+
+  - name: medicare_wages_box5
+    label: "Box 5 — Medicare wages and tips"
+    bbox: [370, 152, 480, 176]
+    type: currency
+    required: true
+    anchor_text: "Medicare wages"
+
+  - name: medicare_tax_box6
+    label: "Box 6 — Medicare tax withheld"
+    bbox: [488, 152, 572, 176]
+    type: currency
+    required: false
+    anchor_text: "Medicare tax"
+
+  - name: state_box15
+    label: "Box 15 — State"
+    bbox: [40, 600, 120, 622]
+    type: text
+    required: false
+    anchor_text: "State"
+
+  - name: state_id_box15
+    label: "Box 15 — Employer state ID"
+    bbox: [124, 600, 260, 622]
+    type: text
+    required: false
+    anchor_text: null
+
+  - name: state_wages_box16
+    label: "Box 16 — State wages, tips, etc."
+    bbox: [264, 600, 380, 622]
+    type: currency
+    required: false
+    anchor_text: "State wages"
+
+  - name: state_tax_box17
+    label: "Box 17 — State income tax"
+    bbox: [384, 600, 488, 622]
+    type: currency
+    required: false
+    anchor_text: "State income tax"
+
+anchor_fields: [employee_ssn, employer_ein, wages_box1, federal_tax_withheld_box2]
+created_at: "2026-04-16T12:00:00Z"
+source: marketplace

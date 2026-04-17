@@ -1,0 +1,106 @@
+# IRS Form 1099-NEC — Nonemployee Compensation.
+# Layout: Payer info top-left block, Recipient info mid-left,
+# boxes 1-7 in a grid on the right half, state fields at the bottom.
+# Payer TIN / Recipient TIN sit in a header band between name blocks.
+
+name: 1099-nec
+display_name: IRS 1099-NEC (Nonemployee Compensation)
+description: 1099-NEC with payer/recipient blocks, nonemployee compensation, federal withholding, and state reporting.
+doc_type: tax_form_1099_nec
+page_size: [612, 792]
+
+fields:
+  - name: payer_name
+    label: Payer Name
+    bbox: [40, 60, 300, 90]
+    type: text
+    required: true
+    anchor_text: null
+
+  - name: payer_address
+    label: Payer Address, City, State, ZIP
+    bbox: [40, 94, 300, 170]
+    type: text
+    required: true
+    anchor_text: null
+
+  - name: payer_tin
+    label: Payer TIN
+    bbox: [40, 186, 170, 216]
+    type: text
+    required: true
+    anchor_text: "PAYER'S TIN"
+
+  - name: recipient_tin
+    label: Recipient TIN
+    bbox: [176, 186, 300, 216]
+    type: text
+    required: true
+    anchor_text: "RECIPIENT'S TIN"
+
+  - name: recipient_name
+    label: Recipient Name
+    bbox: [40, 228, 300, 258]
+    type: text
+    required: true
+    anchor_text: null
+
+  - name: recipient_address
+    label: Recipient Address, City, State, ZIP
+    bbox: [40, 262, 300, 340]
+    type: text
+    required: true
+    anchor_text: null
+
+  - name: account_number
+    label: Account Number
+    bbox: [40, 352, 300, 382]
+    type: text
+    required: false
+    anchor_text: "Account number"
+
+  - name: nonemployee_comp_box1
+    label: "Box 1 — Nonemployee compensation"
+    bbox: [320, 94, 572, 140]
+    type: currency
+    required: true
+    anchor_text: "Nonemployee compensation"
+
+  - name: payer_direct_sales_box2
+    label: "Box 2 — Payer made direct sales ($5k+)"
+    bbox: [320, 148, 572, 180]
+    type: text
+    required: false
+    anchor_text: "direct sales"
+
+  - name: federal_tax_withheld_box4
+    label: "Box 4 — Federal income tax withheld"
+    bbox: [320, 192, 572, 228]
+    type: currency
+    required: false
+    anchor_text: "Federal income tax"
+
+  - name: state_tax_withheld_box5
+    label: "Box 5 — State tax withheld"
+    bbox: [320, 236, 430, 278]
+    type: currency
+    required: false
+    anchor_text: "State tax"
+
+  - name: state_box6
+    label: "Box 6 — State / Payer's state no."
+    bbox: [432, 236, 502, 278]
+    type: text
+    required: false
+    anchor_text: null
+
+  - name: state_income_box7
+    label: "Box 7 — State income"
+    bbox: [504, 236, 572, 278]
+    type: currency
+    required: false
+    anchor_text: "State income"
+
+anchor_fields: [payer_tin, recipient_tin, nonemployee_comp_box1]
+created_at: "2026-04-16T12:00:00Z"
+source: marketplace

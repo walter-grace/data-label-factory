@@ -1,0 +1,93 @@
+# Service Agreement — first-page boilerplate layout for a standard
+# B2B services contract. Title + preamble up top, defined terms
+# mid-page, governing law near bottom, signature blocks at the foot.
+# Multi-page contracts usually put signatures on a later page; users
+# can point this template at whichever page carries the sigs.
+
+name: service-agreement
+display_name: Service Agreement
+description: Standard B2B services contract with party blocks, effective date, term, governing law, and signatures.
+doc_type: contract
+page_size: [612, 792]
+
+fields:
+  - name: agreement_title
+    label: Agreement Title
+    bbox: [106, 72, 506, 108]
+    type: text
+    required: true
+    anchor_text: "Agreement"
+
+  - name: effective_date
+    label: Effective Date
+    bbox: [72, 130, 540, 158]
+    type: date
+    required: true
+    anchor_text: "Effective Date"
+
+  - name: party_1
+    label: Party 1 (Client / Customer)
+    bbox: [72, 170, 540, 214]
+    type: text
+    required: true
+    anchor_text: null
+
+  - name: party_1_address
+    label: Party 1 Address
+    bbox: [72, 218, 540, 254]
+    type: text
+    required: false
+    anchor_text: null
+
+  - name: party_2
+    label: Party 2 (Provider / Contractor)
+    bbox: [72, 264, 540, 308]
+    type: text
+    required: true
+    anchor_text: null
+
+  - name: party_2_address
+    label: Party 2 Address
+    bbox: [72, 312, 540, 348]
+    type: text
+    required: false
+    anchor_text: null
+
+  - name: services_description
+    label: Description of Services
+    bbox: [72, 372, 540, 490]
+    type: text
+    required: true
+    anchor_text: "Services"
+
+  - name: term_length
+    label: Term / Duration
+    bbox: [72, 504, 540, 540]
+    type: text
+    required: true
+    anchor_text: "Term"
+
+  - name: fees
+    label: Fees / Compensation
+    bbox: [72, 550, 540, 600]
+    type: currency
+    required: false
+    anchor_text: "Fees"
+
+  - name: governing_law
+    label: Governing Law
+    bbox: [72, 610, 540, 640]
+    type: text
+    required: true
+    anchor_text: "Governing Law"
+
+  - name: signature_blocks
+    label: Signature Blocks
+    bbox: [72, 660, 540, 760]
+    type: table
+    required: true
+    anchor_text: "Signature"
+
+anchor_fields: [agreement_title, effective_date, party_1, party_2]
+created_at: "2026-04-16T12:00:00Z"
+source: marketplace

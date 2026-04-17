@@ -50,6 +50,7 @@ export default function PricingPage() {
             <Link href="/build" className="transition hover:text-white">Build</Link>
             <Link href="/train" className="transition hover:text-white">Train</Link>
             <Link href="/label" className="transition hover:text-white">Label</Link>
+            <Link href="/parse" className="transition hover:text-white">Parse</Link>
             <Link href="/deploy" className="transition hover:text-white">Deploy</Link>
             <Link href="/pricing" className="text-white">Pricing</Link>
             <a href="https://github.com/walter-grace/data-label-factory" target="_blank" className="transition hover:text-white">GitHub</a>
@@ -179,6 +180,7 @@ export default function PricingPage() {
             <Link href="/train" className="transition hover:text-zinc-300">Train</Link>
             <Link href="/deploy" className="transition hover:text-zinc-300">Deploy</Link>
             <Link href="/label" className="transition hover:text-zinc-300">Label</Link>
+            <Link href="/parse" className="transition hover:text-zinc-300">Parse</Link>
             <a href="https://github.com/walter-grace/data-label-factory" target="_blank" className="transition hover:text-zinc-300">GitHub</a>
           </div>
         </div>

@@ -75,7 +75,7 @@ QWEN_MODEL_PATH = os.environ.get(
 )
 GEMMA_URL = os.environ.get("GEMMA_URL", "http://localhost:8500")
 
-VALID_BACKENDS = ("qwen", "gemma", "chandra", "wilddet3d", "openrouter")
+VALID_BACKENDS = ("qwen", "gemma", "chandra", "wilddet3d", "openrouter", "liteparse")
 
 
 # ============================================================
@@ -1105,6 +1105,82 @@ def cmd_generate(args):
     print(f"  YOLO: {summary.get('yolo_data_yaml', '')}")
 
 
+def cmd_parse(args):
+    """Parse a document with liteparse (or chandra) — layout-preserving text + bboxes.
+
+    RAM-safe defaults on Mac Mini: file cap 50 MB, timeout 60 s, OCR opt-in.
+    """
+    from .providers import create_provider
+
+    config = {
+        "max_file_mb": args.max_mb,
+        "timeout_sec": args.timeout,
+        "ocr": args.ocr,
+        "num_workers": args.workers,
+        "max_pages": args.page_cap,
+    }
+    provider = create_provider(args.backend, config=config)
+
+    st = provider.status()
+    if not st.get("alive"):
+        print(f"  ✗ {args.backend} not available: {st.get('info')}")
+        sys.exit(2)
+
+    path = os.path.abspath(args.file)
+    print(f"  → parsing {path} with {args.backend} (ocr={args.ocr})")
+
+    t0 = time.time()
+
+    if args.backend == "liteparse" and hasattr(provider, "parse"):
+        # Use raw parse for readable output
+        try:
+            result = provider.parse(path, ocr=args.ocr)
+        except (FileNotFoundError, ValueError, RuntimeError, TimeoutError) as e:
+            print(f"  ✗ error: {e}")
+            sys.exit(1)
+
+        text = result.get("text", "") or result.get("markdown", "")
+        pages = result.get("pages", [])
+        elapsed = result.get("elapsed_ms", round((time.time() - t0) * 1000, 1))
+
+        print(f"  ✓ {len(text)} chars across {len(pages)} page(s) in {elapsed} ms")
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            # Show first 500 chars of text + block summary
+            print("\n--- text preview ---")
+            print(text[:500] + ("..." if len(text) > 500 else ""))
+            if pages:
+                print("\n--- blocks ---")
+                for page in pages[: args.preview_pages]:
+                    blocks = page.get("blocks", []) or []
+                    print(f"  page {page.get('page', '?')}: {len(blocks)} blocks")
+                    for b in blocks[:5]:
+                        btype = b.get("type", "text")
+                        bt = (b.get("text") or "")[:60].replace("\n", " ")
+                        print(f"    [{btype}] {bt}")
+        return
+
+    # Fallback path: use label_image (works for any provider)
+    queries = [q.strip() for q in (args.queries or "text,table,header").split(",")]
+    result = provider.label_image(path, queries)
+    elapsed = round(result.elapsed * 1000, 1)
+
+    print(f"  ✓ {len(result.annotations)} annotations in {elapsed} ms")
+    if args.json:
+        print(json.dumps({
+            "annotations": result.annotations,
+            "metadata": result.metadata,
+            "elapsed_ms": elapsed,
+        }, indent=2))
+    else:
+        for a in result.annotations[:10]:
+            bbox = a.get("bbox", [])
+            cat = a.get("category", "?")
+            txt = (a.get("text") or "")[:60]
+            print(f"    [{cat}] bbox={bbox}  {txt}")
+
+
 def cmd_benchmark(args):
     """Dispatch to benchmark module."""
     from .benchmark import main as benchmark_main
@@ -1249,6 +1325,46 @@ def main():
     se.add_argument("--output", default="yolo_dataset", help="Output directory")
     se.add_argument("--val-split", type=float, default=0.1)
 
+    sp_parse = sub.add_parser(
+        "parse",
+        help="Parse a document (PDF/DOCX/XLSX/PPTX/image) via liteparse or chandra",
+    )
+    sp_parse.add_argument("file", help="Path to document")
+    sp_parse.add_argument(
+        "--backend", default="liteparse", choices=("liteparse", "chandra"),
+        help="Parsing backend (default: liteparse — fast, local, no GPU)",
+    )
+    sp_parse.add_argument(
+        "--ocr", action="store_true",
+        help="Force OCR (heaviest path — RAM-intensive on Mac Mini)",
+    )
+    sp_parse.add_argument(
+        "--max-mb", type=int, default=50,
+        help="Reject files larger than this (MB). Default 50.",
+    )
+    sp_parse.add_argument(
+        "--timeout", type=int, default=60,
+        help="Subprocess timeout in seconds. Default 60.",
+    )
+    sp_parse.add_argument(
+        "--workers", type=int, default=1,
+        help="OCR worker count. Default 1 for RAM-safety on Mac Mini.",
+    )
+    sp_parse.add_argument(
+        "--max-pages", type=int, default=None,
+        dest="page_cap",
+        help="Hard cap on pages parsed (defense-in-depth vs huge docs).",
+    )
+    sp_parse.add_argument(
+        "--queries", default=None,
+        help="Block types to extract (comma-separated). Defaults to text,table,header.",
+    )
+    sp_parse.add_argument(
+        "--preview-pages", type=int, default=5,
+        help="How many pages to show in preview (non-JSON mode). Default 5.",
+    )
+    sp_parse.add_argument("--json", action="store_true", help="Emit raw JSON output")
+
     sg_syn = sub.add_parser("generate", help="Generate synthetic training data (flywheel)")
     sg_syn.add_argument("--refs", required=True,
                         help="Directory of reference images (PNGs with alpha preferred)")
@@ -1274,6 +1390,7 @@ def main():
         "auto": cmd_auto,
         "serve-mcp": cmd_serve_mcp,
         "generate": cmd_generate,
+        "parse": cmd_parse,
     }.get(args.command)
     if cmd_func is None:
         p.print_help()

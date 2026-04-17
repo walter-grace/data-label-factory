@@ -1,0 +1,100 @@
+# US Invoice — standard single-page US letter invoice layout.
+# Vendor info top-left, invoice meta top-right, bill/ship mid-left,
+# line-items table in the middle, totals bottom-right, terms at the
+# very bottom. All bboxes are approximate — the editor lets users
+# drag them to fit their real documents.
+
+name: us-invoice
+display_name: US Invoice
+description: Standard US business invoice with vendor, bill-to/ship-to, line items, tax, and totals.
+doc_type: invoice
+page_size: [612, 792]
+
+fields:
+  - name: vendor
+    label: Vendor / Company
+    bbox: [40, 40, 300, 90]
+    type: text
+    required: true
+    anchor_text: null
+
+  - name: invoice_number
+    label: Invoice #
+    bbox: [430, 60, 572, 82]
+    type: text
+    required: true
+    anchor_text: "Invoice"
+
+  - name: issue_date
+    label: Issue Date
+    bbox: [430, 88, 572, 108]
+    type: date
+    required: true
+    anchor_text: "Date"
+
+  - name: due_date
+    label: Due Date
+    bbox: [430, 114, 572, 134]
+    type: date
+    required: false
+    anchor_text: "Due"
+
+  - name: bill_to
+    label: Bill To
+    bbox: [40, 160, 300, 240]
+    type: text
+    required: true
+    anchor_text: "Bill To"
+
+  - name: ship_to
+    label: Ship To
+    bbox: [316, 160, 572, 240]
+    type: text
+    required: false
+    anchor_text: "Ship To"
+
+  - name: line_items
+    label: Line Items
+    bbox: [40, 280, 572, 560]
+    type: table
+    required: true
+    anchor_text: "Description"
+
+  - name: subtotal
+    label: Subtotal
+    bbox: [430, 580, 572, 602]
+    type: currency
+    required: true
+    anchor_text: "Subtotal"
+
+  - name: tax
+    label: Tax
+    bbox: [430, 606, 572, 628]
+    type: currency
+    required: false
+    anchor_text: "Tax"
+
+  - name: total_amount
+    label: Total
+    bbox: [430, 632, 572, 660]
+    type: currency
+    required: true
+    anchor_text: "Total"
+
+  - name: payment_terms
+    label: Payment Terms
+    bbox: [40, 690, 400, 730]
+    type: text
+    required: false
+    anchor_text: "Terms"
+
+  - name: notes
+    label: Notes / Memo
+    bbox: [40, 736, 572, 776]
+    type: text
+    required: false
+    anchor_text: null
+
+anchor_fields: [invoice_number, issue_date, total_amount]
+created_at: "2026-04-16T12:00:00Z"
+source: marketplace

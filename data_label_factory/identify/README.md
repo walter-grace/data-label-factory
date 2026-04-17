@@ -236,6 +236,73 @@ scale to be useful for **your** garden.
 
 ---
 
+## Optional: live price feed (`scrape_prices` + UI integration)
+
+If your reference images correspond to items with a market price (trading cards,
+collectibles, parts, etc), you can plug in a live price feed and have the live
+tracker UI show the price next to each identified item.
+
+### How it works
+
+```
+scripts/scrape_prices_<your_site>.py            ← per-site adapter
+        ↓
+card_prices.json                                ← keyed by set code, contains JPY/USD/etc
+        ↓
+data_label_factory.identify serve --prices …    ← server loads it at startup
+        ↓                                          + fetches live FX rate from open.er-api.com
+{detection, price: {median, currency, usd_median}}  ← surfaced per detection
+        ↓
+web/canvas/live UI                              ← shows USD prominently in the
+                                                  Active Tracks sidebar + a
+                                                  Top Valuable Cards panel sorted
+                                                  by USD descending
+```
+
+### Built-in scraper: yuyu-tei.jp (Japanese OCG market)
+
+```bash
+python3 -m data_label_factory.identify scrape_prices \
+    --refs ~/my-cards/ \
+    --out card_prices.json \
+    --site yuyu-tei
+```
+
+This is the **example adapter**. Add new sites by implementing a
+`_scrape_<sitename>(prefixes)` function in `scrape_prices.py` and wiring it
+into the dispatcher at the bottom of the file. The output schema is
+site-agnostic.
+
+### Live tracker UI features when prices are loaded
+
+- **Per-detection price line** in the Active Tracks sidebar — USD prominently,
+  original currency underneath
+- **Top Valuable Cards panel** — fetched from a new `/api/top-prices` endpoint,
+  sorted by USD descending, showing the N most valuable items in your set
+- **Live FX rate** — JPY/USD conversion fetched once at server startup from
+  `open.er-api.com` (free, no auth)
+- **Filename → name lookup** — server builds a `<set-code> → English display
+  name` map from your reference filenames so the top-prices panel can show
+  human-readable names alongside the codes
+
+### Add to Deck (localStorage-backed deck builder)
+
+The live tracker also includes a **`+ Add to Deck`** button on each active
+track. Clicking it:
+
+- Adds the identified card to a local deck (browser localStorage, no server state)
+- Triggers a green flash + scale animation on the button
+- Pulses the deck panel border bright emerald so you can see the card landed
+- Updates the running deck total in USD
+- Persists across page refreshes
+- Lets you remove individual items or clear the whole deck
+
+This is a generic feature that works for any retrieval set — useful for
+"build a list of items I've identified" workflows beyond just card collecting
+(inventory taking, parts pulling, plant logging, …).
+
+---
+
 ## The data-label-factory loop, applied to retrieval
 
 ```

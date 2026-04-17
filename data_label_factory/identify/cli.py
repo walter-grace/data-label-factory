@@ -21,10 +21,13 @@ data_label_factory.identify — open-set image retrieval
 usage: python3 -m data_label_factory.identify <command> [options]
 
 commands:
-  index    Build a CLIP retrieval index from a folder of reference images
-  verify   Self-test an index and report margin / confusable pairs
-  train    Contrastive fine-tune a projection head (improves accuracy)
-  serve    Run an HTTP server that exposes the index as /api/falcon
+  index           Build a CLIP retrieval index from a folder of reference images
+  verify          Self-test an index and report margin / confusable pairs
+  train           Contrastive fine-tune a projection head (improves accuracy)
+  scrape_prices   Scrape live market prices and cache them as a sidecar to the index
+  serve           Run an HTTP server that exposes the index as /api/falcon
+  mcp             Run an MCP server that bridges the agent gateway over stdio
+  webui-mcp       Run an MCP server for website UI labeling over stdio
 
 run any command with --help for its options. The full blueprint is in
 data_label_factory/identify/README.md.
@@ -49,9 +52,18 @@ def main(argv: list[str] | None = None) -> int:
     if cmd == "train":
         from .train import main as _main
         return _main(rest)
+    if cmd in ("scrape_prices", "scrape-prices", "prices"):
+        from .scrape_prices import main as _main
+        return _main(rest)
     if cmd == "serve":
         from .serve import main as _main
         return _main(rest)
+    if cmd in ("mcp", "mcp-server", "mcp_server"):
+        from .mcp_server import main as _main
+        return _main()
+    if cmd in ("webui-mcp", "webui_mcp"):
+        from .webui_mcp import main as _main
+        return _main()
 
     print(f"unknown command: {cmd}\n", file=sys.stderr)
     print(HELP, file=sys.stderr)

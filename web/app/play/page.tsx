@@ -162,8 +162,8 @@ const SAMPLE_CHALLENGES: Challenge[] = [
   { id: 4, imageUrl: "https://images.unsplash.com/photo-1526336024174-e58f5cdd8e13?w=400", target: "dog", aiPrediction: "NO", aiConfidence: 0.90, isHoneypot: true, groundTruth: "NO" },           // cat photo → "is this a dog?" → NO
   // Real challenges — need human/agent verification
   { id: 5, imageUrl: "https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400", target: "dog", aiPrediction: "YES", aiConfidence: 0.78, isHoneypot: false },            // dog photo
-  { id: 6, imageUrl: "https://images.unsplash.com/photo-1583337130417-13104dec14a4?w=400", target: "cat", aiPrediction: "YES", aiConfidence: 0.91, isHoneypot: false },           // cat photo
-  { id: 7, imageUrl: "https://images.unsplash.com/photo-1474511320723-9a56873571b7?w=400", target: "bird", aiPrediction: "YES", aiConfidence: 0.73, isHoneypot: false },          // bird photo
+  { id: 6, imageUrl: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=400", target: "cat", aiPrediction: "YES", aiConfidence: 0.91, isHoneypot: false },           // cat photo
+  { id: 7, imageUrl: "https://images.unsplash.com/photo-1444464666168-49d633b86797?w=400", target: "bird", aiPrediction: "YES", aiConfidence: 0.73, isHoneypot: false },          // bird photo
   { id: 8, imageUrl: "https://images.unsplash.com/photo-1566933293069-b55c7f326dd4?w=400", target: "car", aiPrediction: "YES", aiConfidence: 0.88, isHoneypot: false },           // car photo
   { id: 9, imageUrl: "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=400", target: "fire hydrant", aiPrediction: "NO", aiConfidence: 0.89, isHoneypot: false },   // bridge photo → no fire hydrant
   { id: 10, imageUrl: "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=400", target: "cat", aiPrediction: "YES", aiConfidence: 0.84, isHoneypot: false },          // cat photo
@@ -823,7 +823,7 @@ export default function PlayPage() {
               </div>
             </div>
 
-            <div className="mt-12 grid gap-5 sm:grid-cols-2 max-w-lg mx-auto">
+            <div className="mt-12 grid gap-5 sm:grid-cols-3 max-w-2xl mx-auto">
               <button
                 onClick={() => startGame("filter")}
                 className="group rounded-2xl border border-zinc-800 bg-zinc-900/30 p-6 text-left transition hover:border-blue-500/30 hover:bg-zinc-900/60"
@@ -841,21 +841,44 @@ export default function PlayPage() {
                 </div>
               </button>
 
-              <button
-                onClick={() => startGame("bbox")}
-                className="group rounded-2xl border border-zinc-800 bg-zinc-900/30 p-6 text-left transition hover:border-blue-500/30 hover:bg-zinc-900/60"
+              <a
+                href="/play/docs"
+                className="group rounded-2xl border border-zinc-800 bg-zinc-900/30 p-6 text-left transition hover:border-blue-500/30 hover:bg-zinc-900/60 relative"
               >
+                <span className="absolute top-3 right-3 rounded-full bg-blue-600/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-400">
+                  New
+                </span>
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600/10 text-2xl mb-4">
-                  [ ]
+                  ¶
                 </div>
-                <h3 className="text-lg font-semibold">Bbox Judge</h3>
+                <h3 className="text-lg font-semibold">Document Flywheel</h3>
                 <p className="mt-2 text-sm text-zinc-400">
-                  Is this bounding box correct? Rate the AI&apos;s detection accuracy.
+                  Verify document layout. Is this block a header? YES or NO.
+                  Trains a doc-layout model.
                 </p>
                 <div className="mt-3 text-xs text-blue-400 group-hover:text-blue-300">
-                  Coming soon &rarr;
+                  Play doc mode &rarr;
                 </div>
-              </button>
+              </a>
+
+              <a
+                href="/play/spin"
+                className="group rounded-2xl border border-zinc-800 bg-zinc-900/30 p-6 text-left transition hover:border-amber-500/30 hover:bg-zinc-900/60 relative"
+              >
+                <span className="absolute top-3 right-3 rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-400">
+                  Casino
+                </span>
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-600/10 text-2xl mb-4">
+                  🎰
+                </div>
+                <h3 className="text-lg font-semibold">Spin Wheel</h3>
+                <p className="mt-2 text-sm text-zinc-400">
+                  Spin the casino wheel. Land on a label type. JACKPOT = 3x points!
+                </p>
+                <div className="mt-3 text-xs text-amber-400 group-hover:text-amber-300">
+                  Spin to win &rarr;
+                </div>
+              </a>
             </div>
 
             {/* How it works */}

@@ -1,0 +1,99 @@
+# Merchant receipt — optimized for a scanned or photographed
+# retail/restaurant receipt on US letter. Real receipts are narrow
+# thermal prints, so we center the content column and leave the sides
+# blank. Users with tall-narrow scans usually crop first.
+
+name: receipt
+display_name: Retail Receipt
+description: Retail / restaurant receipt with merchant, date, item lines, subtotal, tax, total, and payment method.
+doc_type: receipt
+page_size: [612, 792]
+
+fields:
+  - name: merchant
+    label: Merchant Name
+    bbox: [180, 50, 432, 92]
+    type: text
+    required: true
+    anchor_text: null
+
+  - name: merchant_address
+    label: Merchant Address
+    bbox: [180, 96, 432, 150]
+    type: text
+    required: false
+    anchor_text: null
+
+  - name: transaction_date
+    label: Transaction Date
+    bbox: [180, 160, 330, 188]
+    type: date
+    required: true
+    anchor_text: "Date"
+
+  - name: transaction_time
+    label: Transaction Time
+    bbox: [336, 160, 432, 188]
+    type: text
+    required: false
+    anchor_text: "Time"
+
+  - name: receipt_number
+    label: Receipt / Transaction #
+    bbox: [180, 192, 432, 218]
+    type: text
+    required: false
+    anchor_text: "Receipt"
+
+  - name: item_lines
+    label: Items
+    bbox: [180, 240, 432, 520]
+    type: table
+    required: true
+    anchor_text: null
+
+  - name: subtotal
+    label: Subtotal
+    bbox: [300, 540, 432, 562]
+    type: currency
+    required: false
+    anchor_text: "Subtotal"
+
+  - name: tax
+    label: Tax
+    bbox: [300, 566, 432, 588]
+    type: currency
+    required: false
+    anchor_text: "Tax"
+
+  - name: tip
+    label: Tip / Gratuity
+    bbox: [300, 592, 432, 614]
+    type: currency
+    required: false
+    anchor_text: "Tip"
+
+  - name: total
+    label: Total
+    bbox: [300, 620, 432, 648]
+    type: currency
+    required: true
+    anchor_text: "Total"
+
+  - name: payment_method
+    label: Payment Method
+    bbox: [180, 660, 432, 690]
+    type: text
+    required: true
+    anchor_text: null
+
+  - name: card_last4
+    label: Card Last 4
+    bbox: [180, 694, 432, 716]
+    type: text
+    required: false
+    anchor_text: "XXXX"
+
+anchor_fields: [merchant, total, transaction_date]
+created_at: "2026-04-16T12:00:00Z"
+source: marketplace

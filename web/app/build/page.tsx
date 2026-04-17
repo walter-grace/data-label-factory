@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,7 +47,7 @@ async function dlfPost(endpoint: string, formData: FormData) {
 /* Component                                                           */
 /* ------------------------------------------------------------------ */
 
-export default function BuildPage() {
+function BuildPageInner() {
   const searchParams = useSearchParams();
   const [step, setStep] = useState<Step>("input");
   const [target, setTarget] = useState(searchParams.get("target") || "");
@@ -1093,5 +1093,13 @@ export default function BuildPage() {
         </div>
       </footer>
     </main>
+  );
+}
+
+export default function BuildPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-zinc-950" />}>
+      <BuildPageInner />
+    </Suspense>
   );
 }

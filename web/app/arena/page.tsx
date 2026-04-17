@@ -66,7 +66,7 @@ export default function ArenaPage() {
   const [feed, setFeed] = useState<FeedEvent[]>([]);
   const [running, setRunning] = useState(false);
   const [totalLabels, setTotalLabels] = useState(0);
-  const [scoreHistory, setScoreHistory] = useState<Array<Record<string, number>>>([]);
+  const [scoreHistory, setScoreHistory] = useState<Array<{ tick: number; [agentId: string]: number }>>([]);
   const tickCount = useRef(0);
   const [showCombo, setShowCombo] = useState<{ name: string; streak: number; title: string } | null>(null);
   const feedRef = useRef<HTMLDivElement>(null);
@@ -147,7 +147,7 @@ export default function ArenaPage() {
 
       // Record score snapshot for chart
       tickCount.current++;
-      const snapshot: Record<string, number> = { tick: tickCount.current };
+      const snapshot: { tick: number; [agentId: string]: number } = { tick: tickCount.current };
       for (const a of updated) {
         snapshot[a.id] = a.score;
       }

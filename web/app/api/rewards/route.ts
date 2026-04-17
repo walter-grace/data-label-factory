@@ -19,13 +19,18 @@ export type RewardEntry = {
   label: "YES" | "NO";
   reward: number;         // +3 correct, -3 wrong, 0 honeypot-only
   source: string;         // "human:web", "agent:hermes-1", "agent:claude-1"
-  sourceType: "human" | "agent";
+  sourceType: "human" | "agent" | "doc"; // "doc" = document-layout Flywheel
   trustScore: number;     // player's trust at time of labeling
   isHoneypot: boolean;
   honeypotCorrect?: boolean;
   responseTimeMs: number;
   streak: number;
   timestamp: string;
+  // Document-mode only (sourceType === "doc")
+  docId?: string;
+  blockText?: string;
+  bbox?: number[];           // [x1, y1, x2, y2] in PDF points
+  tentativeType?: string;    // what lit's heuristic guessed
 };
 
 // In-memory store (production: R2 + database)
@@ -49,6 +54,11 @@ export async function POST(req: NextRequest) {
       responseTimeMs: body.response_time_ms ?? body.responseTimeMs ?? 0,
       streak: body.streak ?? 0,
       timestamp: new Date().toISOString(),
+      // Document-mode extras (only populated when source_type=doc)
+      docId: body.doc_id || body.docId,
+      blockText: body.block_text || body.blockText,
+      bbox: body.bbox,
+      tentativeType: body.tentative_type || body.tentativeType,
     };
 
     // Only accept labels from trusted sources (trust >= 50)
@@ -93,6 +103,7 @@ export async function GET(req: NextRequest) {
     const negative = rewardPool.filter((r) => r.reward < 0).length;
     const humanLabels = rewardPool.filter((r) => r.sourceType === "human").length;
     const agentLabels = rewardPool.filter((r) => r.sourceType === "agent").length;
+    const docLabels = rewardPool.filter((r) => r.sourceType === "doc").length;
     const avgTrust = total > 0 ? Math.round(rewardPool.reduce((s, r) => s + r.trustScore, 0) / total) : 0;
     const avgResponseMs = total > 0 ? Math.round(rewardPool.reduce((s, r) => s + r.responseTimeMs, 0) / total) : 0;
     const uniqueTargets = new Set(rewardPool.map((r) => r.target)).size;
@@ -106,6 +117,7 @@ export async function GET(req: NextRequest) {
       negative,
       human_labels: humanLabels,
       agent_labels: agentLabels,
+      doc_labels: docLabels,
       avg_trust: avgTrust,
       avg_response_ms: avgResponseMs,
       unique_targets: uniqueTargets,
@@ -133,6 +145,14 @@ export async function GET(req: NextRequest) {
       label: r.label,
       reward: r.reward,
       trust: r.trustScore,
+      source_type: r.sourceType,
+      // Doc-mode extras — only emitted when present so image JSONL stays clean
+      ...(r.sourceType === "doc" && {
+        doc_id: r.docId,
+        block_text: r.blockText,
+        bbox: r.bbox,
+        tentative_type: r.tentativeType,
+      }),
     })).join("\n");
     return new Response(lines, {
       headers: { "Content-Type": "application/jsonl", "Content-Disposition": "attachment; filename=rewards.jsonl" },

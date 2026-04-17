@@ -182,6 +182,144 @@ def _make_server():
                 },
             ),
             Tool(
+                name="play_flywheel_docs",
+                description=(
+                    "Play the *document-layout* Flywheel game. Get a challenge "
+                    "block from a parsed document and answer YES or NO to a "
+                    "structural question (e.g. 'Is this block a section header?'). "
+                    "Each challenge returns block_text, bbox, and a page_image_url "
+                    "so text-only LLMs AND vision models can play. Honeypot trust "
+                    "+ GRPO reward pool mirror the image-mode game."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "action": {
+                            "type": "string",
+                            "enum": ["challenge", "answer", "docs", "stats", "register"],
+                            "description": "Action: get a challenge, submit answer, list documents, check stats, or register",
+                        },
+                        "agent_name": {
+                            "type": "string",
+                            "description": "Your agent name",
+                        },
+                        "challenge_id": {
+                            "type": "string",
+                            "description": "Challenge ID from a previous challenge (for answer action)",
+                        },
+                        "answer": {
+                            "type": "string",
+                            "enum": ["YES", "NO"],
+                            "description": "YES or NO (for answer action)",
+                        },
+                        "custom_endpoint": {
+                            "type": "string",
+                            "description": "Your custom vision API endpoint URL (for register, optional)",
+                        },
+                    },
+                    "required": ["action"],
+                },
+            ),
+            Tool(
+                name="connect_moltbook",
+                description=(
+                    "Link an agent's Moltbook (https://www.moltbook.com) "
+                    "identity to their DLF agent_id. DLF verifies by calling "
+                    "Moltbook's /api/v1/agents/me with the agent's API key. "
+                    "After linking, DLF scores attribute to the Moltbook "
+                    "`molty_name` and achievements can be broadcast to the "
+                    "bot social feed."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "agent_id": {
+                            "type": "string",
+                            "description": "DLF agent ID (same one used on /api/agent endpoints)",
+                        },
+                        "moltbook_api_key": {
+                            "type": "string",
+                            "description": "Your Moltbook API key (moltbook_xxx)",
+                        },
+                    },
+                    "required": ["agent_id", "moltbook_api_key"],
+                },
+            ),
+            Tool(
+                name="extract_from_template",
+                description=(
+                    "Apply a saved document-extraction template to a PDF and "
+                    "return structured fields (invoice_number, total, date, etc.) "
+                    "as a JSON object. Templates live in the marketplace library "
+                    "(prebuilt: us-invoice, w2, 1099-nec, receipt, service-agreement) "
+                    "or user folder. Use `list_templates` first to discover options."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "template_name": {
+                            "type": "string",
+                            "description": "Template slug (e.g. 'us-invoice')",
+                        },
+                        "pdf_path": {
+                            "type": "string",
+                            "description": "Absolute path to the PDF/DOCX/image",
+                        },
+                        "library": {
+                            "type": "boolean",
+                            "default": False,
+                            "description": "Force library (true) or user (false) source",
+                        },
+                    },
+                    "required": ["template_name", "pdf_path"],
+                },
+            ),
+            Tool(
+                name="list_templates",
+                description=(
+                    "List all document-extraction templates — library (prebuilt) "
+                    "and user-created. Returns names + descriptions + field counts."
+                ),
+                inputSchema={"type": "object", "properties": {}},
+            ),
+            Tool(
+                name="parse_document",
+                description=(
+                    "Parse a local document (PDF/DOCX/XLSX/PPTX/image) into "
+                    "layout-preserving text + block bboxes. Uses LiteParse "
+                    "(fast, local, no GPU) by default; falls back to Chandra "
+                    "for heavy OCR. RAM-safe: 50 MB cap, 60 s timeout, OCR "
+                    "opt-in. Use when an agent needs to read a document's "
+                    "contents or label its structural regions."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Absolute path to the document file",
+                        },
+                        "backend": {
+                            "type": "string",
+                            "enum": ["liteparse", "chandra"],
+                            "default": "liteparse",
+                            "description": "liteparse (fast, local) or chandra (heavy OCR)",
+                        },
+                        "ocr": {
+                            "type": "boolean",
+                            "default": False,
+                            "description": "Opt-in OCR (RAM-heavy; only needed for scans)",
+                        },
+                        "queries": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Block types to extract (e.g. ['table','header']). Empty = all.",
+                        },
+                    },
+                    "required": ["path"],
+                },
+            ),
+            Tool(
                 name="play_flywheel",
                 description=(
                     "Play the Flywheel labeling game. Get a challenge image + target, "
@@ -259,6 +397,21 @@ def _dispatch(name: str, args: dict) -> dict:
 
     if name == "play_flywheel":
         return _tool_play_flywheel(args)
+
+    if name == "parse_document":
+        return _tool_parse_document(args)
+
+    if name == "play_flywheel_docs":
+        return _tool_play_flywheel_docs(args)
+
+    if name == "extract_from_template":
+        return _tool_extract_from_template(args)
+
+    if name == "connect_moltbook":
+        return _tool_connect_moltbook(args)
+
+    if name == "list_templates":
+        return _tool_list_templates_docs()
 
     return {"error": f"unknown tool: {name}"}
 
@@ -557,6 +710,213 @@ def _tool_generate_synthetic(args: dict) -> dict:
         output_dir=args["output_dir"],
         n_scenes=args.get("n_scenes", 100),
     )
+
+
+def _tool_parse_document(args: dict) -> dict:
+    """Parse a document via the liteparse / chandra provider."""
+    from .providers import create_provider
+
+    path = args.get("path")
+    if not path or not os.path.exists(path):
+        return {"error": f"file not found: {path!r}"}
+
+    backend = args.get("backend", "liteparse")
+    if backend not in ("liteparse", "chandra"):
+        return {"error": f"backend must be liteparse or chandra, got {backend!r}"}
+
+    ocr = bool(args.get("ocr", False))
+    queries = args.get("queries") or []
+
+    try:
+        if backend == "liteparse":
+            provider = create_provider("liteparse", config={"ocr": ocr})
+            st = provider.status()
+            if not st.get("alive"):
+                return {"error": f"liteparse unavailable: {st.get('info')}"}
+            if queries:
+                # Structural labeling mode
+                lr = provider.label_image(path, queries)
+                return {
+                    "backend": "liteparse",
+                    "annotations": lr.annotations,
+                    "metadata": lr.metadata,
+                    "elapsed_ms": round(lr.elapsed * 1000, 1),
+                }
+            # Raw parse mode
+            result = provider.parse(path, ocr=ocr)
+            # Truncate text to keep MCP response reasonable
+            text = result.get("text", "")
+            return {
+                "backend": "liteparse",
+                "text_preview": text[:2000] + ("..." if len(text) > 2000 else ""),
+                "text_length": len(text),
+                "pages": [
+                    {"page": p.get("page"), "block_count": len(p.get("blocks") or [])}
+                    for p in result.get("pages", [])
+                ],
+                "elapsed_ms": result.get("elapsed_ms"),
+            }
+
+        # chandra path
+        provider = create_provider("chandra")
+        lr = provider.label_image(path, queries or ["text", "table", "header"])
+        return {
+            "backend": "chandra",
+            "annotations": lr.annotations,
+            "metadata": lr.metadata,
+            "elapsed_ms": round(lr.elapsed * 1000, 1),
+        }
+    except Exception as e:
+        return {"error": f"parse failed: {e}"}
+
+
+def _tool_connect_moltbook(args: dict) -> dict:
+    """Link an agent's Moltbook identity to their DLF agent."""
+    from . import moltbook as mb
+
+    agent_id = (args.get("agent_id") or "").strip()
+    api_key = (args.get("moltbook_api_key") or "").strip()
+    if not agent_id or not api_key:
+        return {"error": "agent_id and moltbook_api_key are required"}
+
+    ok, profile, msg = mb.verify_identity(api_key)
+    if not ok or profile is None:
+        return {"error": f"verify failed: {msg}"}
+
+    link = mb.link_identity(agent_id, profile, api_key)
+    return {"linked": True, **link}
+
+
+def _tool_list_templates_docs() -> dict:
+    """Enumerate library + user templates for agents to pick from."""
+    from .doc_template import list_templates
+    return {
+        "library": [t.summary() for t in list_templates(library=True)],
+        "user": [t.summary() for t in list_templates(library=False)],
+    }
+
+
+def _tool_extract_from_template(args: dict) -> dict:
+    """Apply a saved template to a PDF/DOCX. Returns structured fields.
+
+    Agent-callable entry point — mirrors /api/template-extract but skips
+    the HTTP layer for local invocation.
+    """
+    from .doc_template import Template
+    from .providers import create_provider
+
+    template_name = args.get("template_name")
+    pdf_path = args.get("pdf_path")
+    library = bool(args.get("library", False))
+    if not template_name or not pdf_path:
+        return {"error": "template_name and pdf_path are required"}
+    if not os.path.exists(pdf_path):
+        return {"error": f"file not found: {pdf_path!r}"}
+
+    tpl = Template.load(template_name, library=library)
+    if tpl is None and not library:
+        tpl = Template.load(template_name, library=True)
+    if tpl is None:
+        return {"error": f"template not found: {template_name!r}"}
+
+    try:
+        provider = create_provider("liteparse")
+        st = provider.status()
+        if not st.get("alive"):
+            return {"error": f"liteparse unavailable: {st.get('info')}"}
+        parsed = provider.parse(pdf_path, ocr=False)
+        fields = tpl.apply(parsed)
+        return {
+            "template": tpl.name,
+            "file": pdf_path,
+            "fields": fields,
+            "page_count": len(parsed.get("pages", [])),
+            "elapsed_ms": parsed.get("elapsed_ms"),
+        }
+    except Exception as e:
+        return {"error": f"extract failed: {e}"}
+
+
+def _tool_play_flywheel_docs(args: dict) -> dict:
+    """Play the document-layout Flywheel game via the Next.js Agent API.
+
+    Mirror of _tool_play_flywheel but for doc challenges. Uses the SAME
+    trust/reward infrastructure so text-only and vision agents both earn
+    the same honeypot credits.
+    """
+    import urllib.request
+
+    api_base = os.environ.get("DLF_WEB_URL", "http://localhost:3030")
+    action = args.get("action", "challenge")
+    agent_name = args.get("agent_name", "mcp-doc-agent")
+
+    if action == "register":
+        # Shared registration with image-mode — it's the same Agent pool.
+        payload = json.dumps({
+            "name": agent_name,
+            "type": "llm",
+            "custom_endpoint": args.get("custom_endpoint"),
+        }).encode()
+        req = urllib.request.Request(
+            f"{api_base}/api/agent?action=register",
+            data=payload,
+            headers={"Content-Type": "application/json", "x-agent-id": agent_name},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read())
+
+    if action == "docs":
+        req = urllib.request.Request(
+            f"{api_base}/api/agent?action=doc-docs&agent_id={agent_name}",
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read())
+
+    if action == "challenge":
+        req = urllib.request.Request(
+            f"{api_base}/api/agent?action=doc-challenge&agent_id={agent_name}",
+            headers={"x-agent-id": agent_name},
+        )
+        with urllib.request.urlopen(req, timeout=15) as r:
+            data = json.loads(r.read())
+        return {
+            **data,
+            "instructions": (
+                "You see a block of text from a document. The block_text field "
+                "is the text content. The page_image_url field is the full "
+                f"rendered page (vision agents can crop bbox={data.get('bbox')} "
+                "from it for a region view). Decide whether this block is a "
+                f"{data.get('question_field', 'header')}. Reply YES or NO by "
+                "calling play_flywheel_docs with action='answer', challenge_id, "
+                "and answer."
+            ),
+        }
+
+    if action == "answer":
+        challenge_id = args.get("challenge_id")
+        answer = (args.get("answer") or "").upper()
+        if not challenge_id or answer not in ("YES", "NO"):
+            return {"error": "Provide challenge_id and answer (YES or NO)"}
+        payload = json.dumps({"challenge_id": challenge_id, "answer": answer}).encode()
+        req = urllib.request.Request(
+            f"{api_base}/api/agent?action=doc-answer",
+            data=payload,
+            headers={"Content-Type": "application/json", "x-agent-id": agent_name},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read())
+
+    if action == "stats":
+        # Reuse image-mode stats — it's a shared agent profile.
+        req = urllib.request.Request(
+            f"{api_base}/api/agent?action=stats&agent_id={agent_name}",
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read())
+
+    return {"error": f"Unknown action: {action}. Use: challenge, answer, docs, stats, register"}
 
 
 def _tool_play_flywheel(args: dict) -> dict:

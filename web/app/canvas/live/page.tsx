@@ -22,6 +22,16 @@ import { IoUTracker, type Track } from "@/lib/iou-tracker";
 
 type SourceMode = "idle" | "file" | "webcam";
 
+type Price = {
+    median?: number;
+    min?: number;
+    max?: number;
+    currency?: string;
+    usd_median?: number;
+    usd_min?: number;
+    usd_max?: number;
+} | null;
+
 type FalconResponse = {
     ok: boolean;
     count?: number;
@@ -32,6 +42,7 @@ type FalconResponse = {
         ref_url?: string;
         margin?: number;
         confident?: boolean;
+        price?: Price;
     }>;
     image_size?: { w: number; h: number };
     elapsed_ms?: number;
@@ -67,6 +78,215 @@ export default function LiveTrackerPage() {
         upstream: "?",
         lastError: "" as string,
     });
+
+    // Top valuable cards in the indexed set, fetched once on page mount.
+    type TopCard = {
+        code: string;
+        name?: string;        // English display name
+        name_jp?: string;     // Japanese name from yuyu-tei
+        jpy_median: number;
+        usd_median?: number;
+    };
+    const [topCards, setTopCards] = useState<TopCard[]>([]);
+    useEffect(() => {
+        fetch("/api/top-prices")
+            .then((r) => r.json())
+            .then((d) => { if (d?.top) setTopCards(d.top); })
+            .catch(() => { /* upstream may not have prices configured */ });
+    }, []);
+
+    // ---------- deck (localStorage-backed) ----------
+    type DeckEntry = {
+        label: string;
+        ref_url?: string;
+        usd?: number;
+        jpy?: number;
+        added_at: number;
+        qty: number;
+    };
+    const DECK_KEY = "dlf-deck-v1";
+    const [deck, setDeck] = useState<Record<string, DeckEntry>>({});
+
+    // Load deck from localStorage on mount
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(DECK_KEY);
+            if (raw) setDeck(JSON.parse(raw));
+        } catch { /* ignore */ }
+    }, []);
+
+    // Persist whenever it changes
+    useEffect(() => {
+        try {
+            localStorage.setItem(DECK_KEY, JSON.stringify(deck));
+        } catch { /* ignore */ }
+    }, [deck]);
+
+    // Visual feedback: which track was JUST added (brief flash + text swap)
+    const [recentlyAddedId, setRecentlyAddedId] = useState<number | null>(null);
+    const recentlyAddedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const addToDeck = useCallback((t: Track) => {
+        if (!t.label) return;
+        const label = t.label;
+        // Strip the trailing rarity suffix from the label for deduping
+        const key = label.replace(/\s*\(.*?\)\s*$/, "").trim();
+        setDeck((prev) => {
+            const existing = prev[key];
+            return {
+                ...prev,
+                [key]: {
+                    label,
+                    ref_url: t.ref_url,
+                    usd: t.price?.usd_median,
+                    jpy: t.price?.median,
+                    added_at: existing?.added_at ?? Date.now(),
+                    qty: (existing?.qty ?? 0) + 1,
+                },
+            };
+        });
+        // Trigger the visual feedback
+        setRecentlyAddedId(t.id);
+        if (recentlyAddedTimerRef.current) clearTimeout(recentlyAddedTimerRef.current);
+        recentlyAddedTimerRef.current = setTimeout(() => setRecentlyAddedId(null), 1400);
+    }, []);
+
+    // Pulse the deck panel when a card was just added (brief border highlight)
+    const [deckPulse, setDeckPulse] = useState(false);
+    const deckPulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => {
+        if (recentlyAddedId === null) return;
+        setDeckPulse(true);
+        if (deckPulseTimerRef.current) clearTimeout(deckPulseTimerRef.current);
+        deckPulseTimerRef.current = setTimeout(() => setDeckPulse(false), 1400);
+    }, [recentlyAddedId]);
+
+    const removeFromDeck = useCallback((key: string) => {
+        setDeck((prev) => {
+            const next = { ...prev };
+            const e = next[key];
+            if (!e) return prev;
+            if (e.qty > 1) next[key] = { ...e, qty: e.qty - 1 };
+            else delete next[key];
+            return next;
+        });
+    }, []);
+
+    const clearDeck = useCallback(() => setDeck({}), []);
+
+    const deckEntries = Object.entries(deck).sort((a, b) => b[1].added_at - a[1].added_at);
+    const deckTotalUsd = deckEntries.reduce(
+        (sum, [, e]) => sum + (typeof e.usd === "number" ? e.usd * e.qty : 0),
+        0,
+    );
+    const deckTotalQty = deckEntries.reduce((sum, [, e]) => sum + e.qty, 0);
+
+    // ---------- agent gateway (SSE event bus) ----------
+    type AgentListing = {
+        listing_id: string;
+        label: string;
+        rarity?: string;
+        ref_url?: string;
+        set_code?: string;
+        price_usd?: number;
+        price_jpy?: number;
+        first_seen_ts: number;
+        last_seen_ts: number;
+        frames_seen: number;
+    };
+    type AgentOrder = {
+        order_id: string;
+        listing_id: string;
+        agent_id: string;
+        label?: string | null;
+        price_usd?: number | null;
+        max_price_usd?: number | null;
+        status: "filled" | "rejected_too_expensive" | "rejected_no_listing" | string;
+        reason?: string;
+        receipt?: string | null;
+        created_at: number;
+    };
+
+    const [agentListings, setAgentListings] = useState<Record<string, AgentListing>>({});
+    const [agentOrders, setAgentOrders] = useState<AgentOrder[]>([]);
+    const [agentConnected, setAgentConnected] = useState<boolean>(false);
+    const [agentError, setAgentError] = useState<string>("");
+    const buyingRef = useRef<Set<string>>(new Set());
+
+    useEffect(() => {
+        const es = new EventSource("/api/agent-stream");
+
+        es.addEventListener("ready", () => {
+            setAgentConnected(true);
+            setAgentError("");
+        });
+
+        es.addEventListener("listing.appeared", (e) => {
+            try {
+                const l = JSON.parse((e as MessageEvent).data) as AgentListing;
+                setAgentListings((prev) => ({ ...prev, [l.listing_id]: l }));
+            } catch { /* ignore malformed frame */ }
+        });
+
+        es.addEventListener("listing.price", (e) => {
+            try {
+                const l = JSON.parse((e as MessageEvent).data) as AgentListing;
+                setAgentListings((prev) =>
+                    prev[l.listing_id] ? { ...prev, [l.listing_id]: { ...prev[l.listing_id], ...l } } : prev,
+                );
+            } catch { /* ignore */ }
+        });
+
+        es.addEventListener("listing.expired", (e) => {
+            try {
+                const l = JSON.parse((e as MessageEvent).data) as { listing_id: string };
+                setAgentListings((prev) => {
+                    if (!prev[l.listing_id]) return prev;
+                    const next = { ...prev };
+                    delete next[l.listing_id];
+                    return next;
+                });
+            } catch { /* ignore */ }
+        });
+
+        const recordOrder = (e: Event) => {
+            try {
+                const o = JSON.parse((e as MessageEvent).data) as AgentOrder;
+                setAgentOrders((prev) => [o, ...prev].slice(0, 25));
+            } catch { /* ignore */ }
+        };
+        es.addEventListener("order.filled", recordOrder);
+        es.addEventListener("order.rejected", recordOrder);
+
+        es.onerror = () => {
+            setAgentConnected(false);
+            setAgentError("disconnected — retrying…");
+        };
+
+        return () => es.close();
+    }, []);
+
+    const buyAsAgent = useCallback(async (listing_id: string, max_price_usd?: number) => {
+        if (buyingRef.current.has(listing_id)) return;
+        buyingRef.current.add(listing_id);
+        try {
+            await fetch("/api/agent-buy", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    listing_id,
+                    agent_id: "demo-browser",
+                    max_price_usd,
+                }),
+            });
+            // The order will arrive via the SSE stream as order.filled / order.rejected.
+        } catch { /* surface via stream error */ }
+        finally {
+            setTimeout(() => buyingRef.current.delete(listing_id), 600);
+        }
+    }, []);
+
+    const agentListingsList = Object.values(agentListings).sort((a, b) => b.last_seen_ts - a.last_seen_ts);
 
     // ---------- core capture loop ----------
     // Called whenever the previous Falcon request resolves OR after we start.
@@ -146,6 +366,7 @@ export default function LiveTrackerPage() {
                 score: b.score,
                 label: b.label,
                 ref_url: b.ref_url,
+                price: b.price ?? null,
             };
         });
 
@@ -445,10 +666,43 @@ export default function LiveTrackerPage() {
                                                 <div className="text-sm text-zinc-100 leading-tight mt-1 break-words">
                                                     {t.label}
                                                 </div>
+                                                {t.price && typeof t.price.median === "number" && (
+                                                    <div className="mt-1">
+                                                        {/* USD as the headline price; original currency in subtle */}
+                                                        {typeof t.price.usd_median === "number" && (
+                                                            <div className="text-lg text-emerald-300 font-bold leading-none">
+                                                                ${t.price.usd_median.toFixed(2)}
+                                                            </div>
+                                                        )}
+                                                        <div className="text-xs text-zinc-400 font-mono leading-tight mt-0.5">
+                                                            ¥{t.price.median.toLocaleString()}
+                                                            {t.price.min !== t.price.max && (
+                                                                <span className="ml-1 text-zinc-500">
+                                                                    (¥{t.price.min?.toLocaleString()}–{t.price.max?.toLocaleString()})
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
                                                 <div className="text-xs text-zinc-500 mt-1.5 font-mono">
                                                     {typeof t.score === "number" ? `score ${t.score.toFixed(2)} · ` : ""}
                                                     seen {t.hits}/{t.age}f
                                                 </div>
+                                                {(() => {
+                                                    const justAdded = recentlyAddedId === t.id;
+                                                    return (
+                                                        <button
+                                                            onClick={() => addToDeck(t)}
+                                                            className={`mt-2 px-2 py-1 rounded text-xs font-semibold w-full transition-all duration-200 ease-out ${
+                                                                justAdded
+                                                                    ? "bg-emerald-500 border border-emerald-400 text-zinc-950 scale-[1.04] shadow-[0_0_18px_rgba(16,185,129,0.7)]"
+                                                                    : "bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-700/60 text-emerald-300"
+                                                            }`}
+                                                        >
+                                                            {justAdded ? "✓ Added!" : "+ Add to Deck"}
+                                                        </button>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
                                     </div>
@@ -456,6 +710,217 @@ export default function LiveTrackerPage() {
                             </div>
                         )}
                     </div>
+                    {/* Top Valuable Cards in this set (loaded once at mount) */}
+                    {topCards.length > 0 && (
+                        <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+                            <div className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3">
+                                Top Valuable Cards
+                            </div>
+                            <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
+                                {topCards.slice(0, 50).map((card, i) => (
+                                    <div
+                                        key={card.code}
+                                        className="border border-zinc-800 rounded-md bg-zinc-950 p-2"
+                                    >
+                                        <div className="flex items-baseline justify-between gap-2">
+                                            <div className="flex items-baseline gap-1.5 min-w-0">
+                                                <span className="text-zinc-500 font-mono text-xs flex-shrink-0">#{i + 1}</span>
+                                                <span className="text-zinc-500 font-mono text-[10px] flex-shrink-0">{card.code}</span>
+                                            </div>
+                                            <div className="text-right whitespace-nowrap flex-shrink-0">
+                                                {typeof card.usd_median === "number" && (
+                                                    <span className="text-emerald-300 font-bold text-sm">
+                                                        ${card.usd_median.toFixed(2)}
+                                                    </span>
+                                                )}
+                                                <span className="text-zinc-500 ml-1.5 font-mono text-[10px]">
+                                                    ¥{card.jpy_median.toLocaleString()}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {(card.name || card.name_jp) && (
+                                            <div
+                                                className="text-xs text-zinc-100 leading-tight mt-1 break-words"
+                                                title={card.name_jp || ""}
+                                            >
+                                                {card.name || card.name_jp}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="text-[10px] text-zinc-500 mt-3 pt-2 border-t border-zinc-800">
+                                from yuyu-tei.jp · {topCards.length} cards · live FX
+                            </div>
+                        </div>
+                    )}
+
+                    {/* My Deck (localStorage-backed) */}
+                    <div
+                        className={`rounded-lg border bg-zinc-900 p-4 transition-all duration-300 ease-out ${
+                            deckPulse
+                                ? "border-emerald-400 shadow-[0_0_24px_rgba(16,185,129,0.5)] scale-[1.01]"
+                                : "border-zinc-800"
+                        }`}
+                    >
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                                My Deck
+                            </div>
+                            {deckEntries.length > 0 && (
+                                <button
+                                    onClick={clearDeck}
+                                    className="text-[10px] text-zinc-500 hover:text-red-400 underline-offset-2 hover:underline"
+                                >
+                                    clear
+                                </button>
+                            )}
+                        </div>
+                        {deckEntries.length === 0 ? (
+                            <div className="text-xs text-zinc-500">
+                                Empty. Click <span className="text-zinc-300">+ Add to Deck</span> on any active track to build a deck.
+                            </div>
+                        ) : (
+                            <>
+                                <div className="text-xs text-zinc-300 mb-3">
+                                    <span className="text-zinc-100 font-bold">{deckTotalQty}</span> cards ·{" "}
+                                    <span className="text-emerald-300 font-bold">${deckTotalUsd.toFixed(2)}</span> total
+                                </div>
+                                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                                    {deckEntries.map(([key, e]) => (
+                                        <div key={key} className="flex items-start gap-2 text-xs border border-zinc-800 rounded p-1.5 bg-zinc-950">
+                                            {e.ref_url ? (
+                                                /* eslint-disable-next-line @next/next/no-img-element */
+                                                <img src={e.ref_url} alt={e.label} className="w-10 h-auto rounded-sm flex-shrink-0" />
+                                            ) : (
+                                                <div className="w-10 h-14 rounded-sm bg-zinc-800 flex-shrink-0" />
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-zinc-100 leading-tight break-words">{e.label}</div>
+                                                <div className="flex items-baseline justify-between mt-1">
+                                                    {typeof e.usd === "number" && (
+                                                        <span className="text-emerald-300 font-bold">
+                                                            ${(e.usd * e.qty).toFixed(2)}
+                                                            {e.qty > 1 && <span className="text-zinc-500 font-normal"> (×{e.qty})</span>}
+                                                        </span>
+                                                    )}
+                                                    <button
+                                                        onClick={() => removeFromDeck(key)}
+                                                        className="text-zinc-500 hover:text-red-400 text-xs"
+                                                        title="Remove one"
+                                                    >
+                                                        −
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    {/* Agent Gateway — live SSE feed of buyable listings + recent orders */}
+                    <div className="rounded-lg border border-fuchsia-900/50 bg-zinc-900 p-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="text-xs font-bold uppercase tracking-wider text-fuchsia-300">
+                                Agent Gateway
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <span
+                                    className={`inline-block w-2 h-2 rounded-full ${
+                                        agentConnected ? "bg-emerald-400 animate-pulse" : "bg-zinc-600"
+                                    }`}
+                                />
+                                <span className="text-[10px] text-zinc-500 font-mono">
+                                    {agentConnected ? "SSE live" : agentError || "connecting…"}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="text-[10px] text-zinc-500 mb-2">
+                            Live Listings ({agentListingsList.length})
+                        </div>
+                        {agentListingsList.length === 0 ? (
+                            <div className="text-xs text-zinc-500 italic">
+                                Hold a card up to the camera — confident detections appear here for agents to buy.
+                            </div>
+                        ) : (
+                            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                                {agentListingsList.map((l) => (
+                                    <div
+                                        key={l.listing_id}
+                                        className="border border-zinc-800 rounded p-2 bg-zinc-950 text-xs"
+                                    >
+                                        <div className="flex items-baseline justify-between gap-2">
+                                            <div className="text-zinc-100 leading-tight break-words flex-1 min-w-0">
+                                                {l.label}
+                                                {l.rarity && <span className="text-zinc-500"> ({l.rarity})</span>}
+                                            </div>
+                                            {typeof l.price_usd === "number" && (
+                                                <span className="text-emerald-300 font-bold whitespace-nowrap">
+                                                    ${l.price_usd.toFixed(2)}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center justify-between mt-1.5 gap-2">
+                                            <span className="font-mono text-[10px] text-zinc-600">
+                                                {l.listing_id} · {l.frames_seen}f
+                                            </span>
+                                            <button
+                                                onClick={() => buyAsAgent(l.listing_id, l.price_usd)}
+                                                className="px-2 py-0.5 rounded text-[10px] font-bold bg-fuchsia-700/30 hover:bg-fuchsia-700/60 border border-fuchsia-700 text-fuchsia-200 transition"
+                                            >
+                                                Buy as Agent
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="text-[10px] text-zinc-500 mt-3 mb-2 border-t border-zinc-800 pt-2">
+                            Recent Orders ({agentOrders.length})
+                        </div>
+                        {agentOrders.length === 0 ? (
+                            <div className="text-xs text-zinc-600 italic">No orders yet.</div>
+                        ) : (
+                            <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
+                                {agentOrders.map((o) => {
+                                    const filled = o.status === "filled";
+                                    return (
+                                        <div
+                                            key={o.order_id}
+                                            className={`text-[11px] font-mono leading-tight border rounded px-1.5 py-1 ${
+                                                filled
+                                                    ? "border-emerald-800/60 bg-emerald-950/30 text-emerald-200"
+                                                    : "border-red-900/50 bg-red-950/20 text-red-300"
+                                            }`}
+                                        >
+                                            <div className="flex items-baseline justify-between gap-1">
+                                                <span className="truncate flex-1">
+                                                    {filled ? "✓" : "✗"} {o.label ?? o.listing_id}
+                                                </span>
+                                                {typeof o.price_usd === "number" && (
+                                                    <span className="font-bold">${o.price_usd.toFixed(2)}</span>
+                                                )}
+                                            </div>
+                                            <div className="text-[9px] text-zinc-500 truncate">
+                                                {o.agent_id} · {o.status}
+                                                {o.receipt && ` · ${o.receipt}`}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        <div className="text-[9px] text-zinc-600 mt-3 pt-2 border-t border-zinc-800 leading-relaxed">
+                            <code className="text-zinc-500">GET /api/agent/stream</code> (SSE) ·{" "}
+                            <code className="text-zinc-500">POST /api/agent/buy</code> · MCP-ready
+                        </div>
+                    </div>
+
                     <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4 text-xs text-zinc-400 space-y-2">
                         <div className="font-bold uppercase tracking-wider text-zinc-400">How it works</div>
                         <div>

@@ -1,0 +1,8 @@
+# Python deps for Vercel serverless function (api/index.py)
+# Keep minimal — only what serve.py needs at import time + runtime
+fastapi>=0.115
+uvicorn>=0.32
+python-multipart>=0.0.20
+pillow>=10.0
+pyyaml>=6.0
+requests>=2.28
