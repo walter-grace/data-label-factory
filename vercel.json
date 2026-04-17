@@ -3,6 +3,11 @@
   "installCommand": "npm install && cd web && npm install",
   "buildCommand": "cd web && npm run build",
   "outputDirectory": "web/.next",
+  "functions": {
+    "api/index.py": {
+      "includeFiles": "data_label_factory/**"
+    }
+  },
   "rewrites": [
     {
       "source": "/backend/:path*",
