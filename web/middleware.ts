@@ -52,6 +52,9 @@ const PUBLIC_PATTERNS = [
   "/api/cluster(.*)",
   "/api/webhooks(.*)",
   "/api/moltbook(.*)",
+  "/api/chat(.*)",
+  "/api/storage(.*)",
+  "/backend(.*)",
 ];
 
 function createMiddleware() {
