@@ -98,29 +98,34 @@ async function ddgImageSearch(query: string, max: number) {
 }
 
 /**
- * Fallback: use Unsplash search API (no auth needed for napi).
- * Returns real, direct image URLs.
+ * Fallback: use Wikimedia Commons API (always works, no auth, no IP blocks).
  */
 async function fallbackSearch(query: string, max: number) {
   const images: { filename: string; url: string; path: string; source: string; title: string }[] = [];
 
   try {
-    const perPage = Math.min(max, 20);
-    const resp = await fetch(
-      `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query)}&per_page=${perPage}`,
-      { headers: { "User-Agent": UA, "Accept": "application/json" } },
-    );
+    const limit = Math.min(max, 30);
+    const url = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=${limit}&gsrnamespace=6&prop=imageinfo&iiprop=url|mime&iiurlwidth=640&format=json`;
+    const resp = await fetch(url, { headers: { "User-Agent": UA } });
     const data = await resp.json();
-    for (const result of data.results || []) {
+    const pages = data.query?.pages || {};
+
+    for (const page of Object.values(pages) as any[]) {
       if (images.length >= max) break;
-      const url = result.urls?.small || result.urls?.regular || result.urls?.thumb;
-      if (!url) continue;
+      const info = page.imageinfo?.[0];
+      if (!info) continue;
+      const mime = info.mime || "";
+      if (!mime.startsWith("image/") || mime.includes("svg")) continue;
+      const imgUrl = info.thumburl || info.url;
+      if (!imgUrl) continue;
+
+      const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : "jpg";
       images.push({
-        filename: `img_${String(images.length).padStart(4, "0")}.jpg`,
-        url,
-        path: url,
-        source: "unsplash",
-        title: (result.alt_description || result.description || query).slice(0, 200),
+        filename: `img_${String(images.length).padStart(4, "0")}.${ext}`,
+        url: imgUrl,
+        path: imgUrl,
+        source: "wikimedia",
+        title: (page.title || "").replace("File:", "").slice(0, 200),
       });
     }
   } catch {
