@@ -59,6 +59,8 @@ const PUBLIC_PATTERNS = [
   "/api/health(.*)",
   "/api/providers(.*)",
   "/api/templates(.*)",
+  "/api/gather(.*)",
+  "/api/label-path(.*)",
   "/backend(.*)",
 ];
 

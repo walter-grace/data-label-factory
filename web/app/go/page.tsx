@@ -150,7 +150,7 @@ export default function GoPage() {
 
   // Auto-detect available labeling backends on load
   useEffect(() => {
-    fetch("/api/dlf?path=/api/providers")
+    fetch("/api/providers")
       .then((r) => r.json())
       .then((d) => {
         const providers = (d.providers || []).map((p: any) => ({
@@ -242,7 +242,7 @@ export default function GoPage() {
     addSystemChat(`Searching for **"${searchQuery}"** images via DuckDuckGo...`);
 
     try {
-      const r = await fetch("/api/dlf?path=/api/gather", {
+      const r = await fetch("/api/gather", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: searchQuery.trim(), max_images: 15 }),
@@ -281,7 +281,7 @@ export default function GoPage() {
 
         try {
           // Call /api/label-path with the best available backend
-          const labelRes = await fetch("/api/dlf?path=/api/label-path", {
+          const labelRes = await fetch("/api/label-path", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -476,7 +476,7 @@ export default function GoPage() {
           form.append("template_name", templateName);
           form.append("library", "true");
 
-          const res = await fetch("/api/dlf?path=/api/template-extract", {
+          const res = await fetch("/api/template-extract", {
             method: "POST",
             body: form,
           });
@@ -903,7 +903,7 @@ export default function GoPage() {
                       onClick={async () => {
                         setSwarmRequested(true);
                         try {
-                          const r = await fetch("/api/dlf?path=/api/moltbook/swarm", {
+                          const r = await fetch("/api/moltbook/swarm", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
