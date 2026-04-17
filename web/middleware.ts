@@ -1,44 +1,50 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
 /**
  * Auth policy:
- *   Public  — marketing, marketplace browsing, live demos, agent-API endpoints
- *   Gated   — anything that writes templates, stores state, or connects to
- *             paid features (template editor, batch extract, dashboard,
- *             agent registration, cloud storage connections)
- *
- * `auth.protect()` will redirect unauthed users to the sign-in flow.
+ *   When Clerk keys are configured → enforce public/gated route policy.
+ *   When Clerk keys are missing → pass all requests through (testing mode).
  */
-const isPublicRoute = createRouteMatcher([
-  // Marketing + primary flow
+
+const hasClerk = !!(
+  process.env.CLERK_SECRET_KEY &&
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+);
+
+// Only import Clerk when keys are present
+let clerkMiddleware: any;
+let createRouteMatcher: any;
+
+if (hasClerk) {
+  try {
+    const clerk = require("@clerk/nextjs/server");
+    clerkMiddleware = clerk.clerkMiddleware;
+    createRouteMatcher = clerk.createRouteMatcher;
+  } catch {
+    // Clerk not installed — pass through
+  }
+}
+
+const PUBLIC_PATTERNS = [
   "/",
   "/go",
   "/chat",
   "/pricing",
   "/extract",
-
-  // Auth
   "/sign-in(.*)",
   "/sign-up(.*)",
-
-  // Marketplace (browsing is free, editing is gated)
   "/template/library",
-
-  // Live demos that don't persist data
   "/parse",
   "/play",
   "/play/(.*)",
   "/arena",
   "/community",
   "/community/(.*)",
-
-  // Legacy top-level sections — existing, stay public for now
   "/build(.*)",
   "/train(.*)",
   "/label(.*)",
   "/pipeline(.*)",
-
-  // Agent / MCP / webhook APIs — agents authenticate with their own keys
   "/api/agent(.*)",
   "/api/dlf(.*)",
   "/api/parse(.*)",
@@ -46,19 +52,26 @@ const isPublicRoute = createRouteMatcher([
   "/api/cluster(.*)",
   "/api/webhooks(.*)",
   "/api/moltbook(.*)",
-]);
+];
 
-export default clerkMiddleware(async (auth, req) => {
-  if (!isPublicRoute(req)) {
-    await auth.protect();
+function createMiddleware() {
+  if (clerkMiddleware && createRouteMatcher) {
+    const isPublicRoute = createRouteMatcher(PUBLIC_PATTERNS);
+    return clerkMiddleware(async (auth: any, req: NextRequest) => {
+      if (!isPublicRoute(req)) {
+        await auth.protect();
+      }
+    });
   }
-});
+  // No Clerk — pass everything through
+  return (_req: NextRequest) => NextResponse.next();
+}
+
+export default createMiddleware();
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and static files
     "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    // Always run for API routes
     "/(api|trpc)(.*)",
   ],
 };
