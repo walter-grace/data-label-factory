@@ -120,7 +120,7 @@ export default function CommunityPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/dlf?path=/api/communities`)
+    fetch(`/api/communities`)
       .then((r) => r.json())
       .then((data) => {
         setCommunities(data.communities || []);
@@ -250,7 +250,7 @@ export default function CommunityPage() {
               if (!name) return;
               const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
               const desc = prompt("Short description:") || "";
-              fetch(`/api/dlf?path=/api/community`, {
+              fetch(`/api/community`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ slug, name, description: desc }),

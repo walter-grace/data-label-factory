@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// In dev: proxy to local FastAPI server (http://localhost:8400)
-// On Vercel: DLF_API_URL should be set to the Python backend URL
-//   Same-project: uses VERCEL_URL automatically
-//   Separate project: set DLF_API_URL=https://your-api.vercel.app
+// In dev: proxy to local FastAPI server
+// On Vercel: proxy to same-origin Next.js API routes (native TS endpoints)
 function getBaseUrl(): string {
   if (process.env.DLF_API_URL) return process.env.DLF_API_URL;
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
@@ -13,10 +11,7 @@ function getBaseUrl(): string {
 export async function GET(req: NextRequest) {
   const path = req.nextUrl.searchParams.get("path") || "/api/health";
   const base = getBaseUrl();
-
-  // On Vercel same-project: route through /backend prefix so the rewrite
-  // sends it to the Python function. Locally: hit FastAPI directly.
-  const url = process.env.VERCEL ? `${base}/backend${path}` : `${base}${path}`;
+  const url = `${base}${path}`;
 
   try {
     const res = await fetch(url, { cache: "no-store" });
@@ -30,7 +25,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const path = req.nextUrl.searchParams.get("path") || "/api/filter";
   const base = getBaseUrl();
-  const url = process.env.VERCEL ? `${base}/backend${path}` : `${base}${path}`;
+  const url = `${base}${path}`;
 
   try {
     const contentType = req.headers.get("content-type") || "";

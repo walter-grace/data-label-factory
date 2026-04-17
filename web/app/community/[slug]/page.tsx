@@ -250,7 +250,7 @@ function NewPostForm({
   const [crossPost, setCrossPost] = useState(false);
   const [posting, setPosting] = useState(false);
 
-  const _proxy = (p: string) => `/api/dlf?path=${encodeURIComponent(p)}`;
+  const _proxy = (p: string) => p;
 
   const submit = async () => {
     if (!title.trim()) return;
@@ -370,7 +370,7 @@ export default function CommunityFeedPage() {
   const [loading, setLoading] = useState(true);
   const [joined, setJoined] = useState(false);
 
-  const _proxy = (p: string) => `/api/dlf?path=${encodeURIComponent(p)}`;
+  const _proxy = (p: string) => p;
 
   const load = useCallback(async () => {
     try {

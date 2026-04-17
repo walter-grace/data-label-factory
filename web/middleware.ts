@@ -54,6 +54,11 @@ const PUBLIC_PATTERNS = [
   "/api/moltbook(.*)",
   "/api/chat(.*)",
   "/api/storage(.*)",
+  "/api/communities(.*)",
+  "/api/community(.*)",
+  "/api/health(.*)",
+  "/api/providers(.*)",
+  "/api/templates(.*)",
   "/backend(.*)",
 ];
 

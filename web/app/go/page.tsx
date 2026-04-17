@@ -187,7 +187,7 @@ export default function GoPage() {
 
   // ── Auto-post to community ──
   const autoPostToCommunity = (query: string, imageCount: number) => {
-    fetch("/api/dlf?path=/api/community/auto-post", {
+    fetch("/api/community/auto-post", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query, image_count: imageCount }),
