@@ -9,11 +9,5 @@
       "source": "/backend/:path*",
       "destination": "/api/index"
     }
-  ],
-  "functions": {
-    "api/index.py": {
-      "runtime": "@vercel/python@4",
-      "maxDuration": 60
-    }
-  }
+  ]
 }
