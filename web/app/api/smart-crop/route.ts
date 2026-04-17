@@ -8,7 +8,7 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 900; // 15 min for long videos
+export const maxDuration = 300;
 
 const MAC_MINI = "bigneek@192.168.1.244";
 

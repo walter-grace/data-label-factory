@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 600;
+export const maxDuration = 300;
 
 const MAC_MINI = "bigneek@192.168.1.244";
 const FFMPEG = "/opt/homebrew/bin/ffmpeg";
