@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { image_search, SafeSearchType } from "duck-duck-scrape";
 
 export const maxDuration = 60;
 
-const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-
 /**
- * POST /api/gather — search for images and return URLs.
- * Uses DDG with browser-like headers. Falls back to returning
- * placeholder results if DDG blocks the request.
+ * POST /api/gather — search DuckDuckGo for images via duck-duck-scrape.
+ * Falls back to Wikimedia Commons if DDG blocks the request.
  */
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -16,8 +14,10 @@ export async function POST(req: NextRequest) {
 
   const maxImages = Math.min(body.max_images || 10, 30);
 
-  // Try DDG image search
-  const images = await ddgImageSearch(query, maxImages);
+  let images = await ddgSearch(query, maxImages);
+  if (images.length === 0) {
+    images = await wikimediaFallback(query, maxImages);
+  }
 
   return NextResponse.json({
     query,
@@ -27,89 +27,45 @@ export async function POST(req: NextRequest) {
   });
 }
 
-async function ddgImageSearch(query: string, max: number) {
-  const images: { filename: string; url: string; path: string; source: string; title: string }[] = [];
+type ImageResult = { filename: string; url: string; path: string; source: string; title: string };
 
+async function ddgSearch(query: string, max: number): Promise<ImageResult[]> {
+  const images: ImageResult[] = [];
   try {
-    // Step 1: get vqd token
-    const tokenResp = await fetch(
-      `https://duckduckgo.com/?q=${encodeURIComponent(query)}&iax=images&ia=images`,
-      {
-        headers: {
-          "User-Agent": UA,
-          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          "Accept-Language": "en-US,en;q=0.5",
-          "Referer": "https://duckduckgo.com/",
-        },
-      },
-    );
-    const html = await tokenResp.text();
-    const match = html.match(/vqd=['"]?([\d-]+)['"]?/);
-    if (!match) {
-      console.log("DDG: no vqd token found, trying fallback");
-      return fallbackSearch(query, max);
-    }
-    const vqd = match[1];
-
-    // Step 2: fetch image results
-    const params = new URLSearchParams({
-      l: "us-en", o: "json", q: query, vqd, f: ",,,,,", p: "1",
-    });
-    const searchResp = await fetch(`https://duckduckgo.com/i.js?${params}`, {
-      headers: {
-        "User-Agent": UA,
-        "Accept": "application/json, text/javascript, */*; q=0.01",
-        "Accept-Language": "en-US,en;q=0.5",
-        "Referer": `https://duckduckgo.com/?q=${encodeURIComponent(query)}&iax=images&ia=images`,
-        "X-Requested-With": "XMLHttpRequest",
-      },
+    const results = await image_search({
+      query,
+      moderate: true,
+      iterations: 1,
+      retries: 2,
     });
 
-    const text = await searchResp.text();
-    let data: any;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      console.log("DDG i.js returned non-JSON, trying fallback");
-      return fallbackSearch(query, max);
-    }
-
-    const seen = new Set<string>();
-    for (const item of data.results || []) {
+    for (const r of results.results || []) {
       if (images.length >= max) break;
-      const imgUrl = item.image;
-      if (!imgUrl || seen.has(imgUrl)) continue;
-      seen.add(imgUrl);
-      const ext = imgUrl.match(/\.(png|webp|gif)/i)?.[1] || "jpg";
+      const url = r.image;
+      if (!url) continue;
+      const ext = url.match(/\.(png|webp|gif)/i)?.[1] || "jpg";
       images.push({
         filename: `img_${String(images.length).padStart(4, "0")}.${ext}`,
-        url: imgUrl,
-        path: imgUrl,
+        url,
+        path: url,
         source: "duckduckgo",
-        title: (item.title || "").slice(0, 200),
+        title: (r.title || "").slice(0, 200),
       });
     }
   } catch (e: any) {
-    console.log(`DDG search error: ${e.message}, trying fallback`);
-    return fallbackSearch(query, max);
+    console.log(`DDG search error: ${e.message}`);
   }
-
-  return images.length > 0 ? images : fallbackSearch(query, max);
+  return images;
 }
 
-/**
- * Fallback: use Wikimedia Commons API (always works, no auth, no IP blocks).
- */
-async function fallbackSearch(query: string, max: number) {
-  const images: { filename: string; url: string; path: string; source: string; title: string }[] = [];
-
+async function wikimediaFallback(query: string, max: number): Promise<ImageResult[]> {
+  const images: ImageResult[] = [];
   try {
     const limit = Math.min(max, 30);
     const url = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=${limit}&gsrnamespace=6&prop=imageinfo&iiprop=url|mime&iiurlwidth=640&format=json`;
-    const resp = await fetch(url, { headers: { "User-Agent": UA } });
+    const resp = await fetch(url);
     const data = await resp.json();
     const pages = data.query?.pages || {};
-
     for (const page of Object.values(pages) as any[]) {
       if (images.length >= max) break;
       const info = page.imageinfo?.[0];
@@ -118,8 +74,7 @@ async function fallbackSearch(query: string, max: number) {
       if (!mime.startsWith("image/") || mime.includes("svg")) continue;
       const imgUrl = info.thumburl || info.url;
       if (!imgUrl) continue;
-
-      const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : "jpg";
+      const ext = mime.includes("png") ? "png" : "jpg";
       images.push({
         filename: `img_${String(images.length).padStart(4, "0")}.${ext}`,
         url: imgUrl,
@@ -128,9 +83,6 @@ async function fallbackSearch(query: string, max: number) {
         title: (page.title || "").replace("File:", "").slice(0, 200),
       });
     }
-  } catch {
-    // Return empty if even fallback fails
-  }
-
+  } catch {}
   return images;
 }
