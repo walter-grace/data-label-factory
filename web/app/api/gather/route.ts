@@ -98,22 +98,29 @@ async function ddgImageSearch(query: string, max: number) {
 }
 
 /**
- * Fallback: use Unsplash source URLs which always work.
- * These are real images matching the query via Unsplash's search.
+ * Fallback: use Unsplash search API (no auth needed for napi).
+ * Returns real, direct image URLs.
  */
 async function fallbackSearch(query: string, max: number) {
   const images: { filename: string; url: string; path: string; source: string; title: string }[] = [];
 
   try {
-    // Use Unsplash source which redirects to a real image
-    for (let i = 0; i < Math.min(max, 12); i++) {
-      const url = `https://source.unsplash.com/640x480/?${encodeURIComponent(query)}&sig=${i}`;
+    const perPage = Math.min(max, 20);
+    const resp = await fetch(
+      `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query)}&per_page=${perPage}`,
+      { headers: { "User-Agent": UA, "Accept": "application/json" } },
+    );
+    const data = await resp.json();
+    for (const result of data.results || []) {
+      if (images.length >= max) break;
+      const url = result.urls?.small || result.urls?.regular || result.urls?.thumb;
+      if (!url) continue;
       images.push({
-        filename: `img_${String(i).padStart(4, "0")}.jpg`,
+        filename: `img_${String(images.length).padStart(4, "0")}.jpg`,
         url,
         path: url,
         source: "unsplash",
-        title: `${query} (${i + 1})`,
+        title: (result.alt_description || result.description || query).slice(0, 200),
       });
     }
   } catch {
