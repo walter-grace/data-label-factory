@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchImages } from "duck-duck-scrape";
 
 export const maxDuration = 60;
 
@@ -14,10 +13,9 @@ export async function POST(req: NextRequest) {
 
   const maxImages = Math.min(body.max_images || 10, 30);
 
-  let images = await ddgSearch(query, maxImages);
-  if (images.length === 0) {
-    images = await wikimediaFallback(query, maxImages);
-  }
+  // Server-side: use Wikimedia Commons (always works from datacenter IPs).
+  // DDG search is done client-side in the browser (bypasses bot detection).
+  const images = await wikimediaFallback(query, maxImages);
 
   return NextResponse.json({
     query,

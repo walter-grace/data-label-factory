@@ -234,7 +234,41 @@ export default function GoPage() {
     ]);
   }, []);
 
-  // ── Step 0: Search + gather from DDG ──
+  // ── Client-side DDG image search ──
+  const ddgClientSearch = async (query: string, max: number): Promise<Array<{ filename: string; url: string; path: string; source: string; title: string }>> => {
+    try {
+      // Step 1: get vqd token (runs in user's browser — no datacenter IP block)
+      const tokenResp = await fetch(`https://duckduckgo.com/?q=${encodeURIComponent(query)}&iax=images&ia=images`);
+      const html = await tokenResp.text();
+      const match = html.match(/vqd=['"]([\d-]+)['"]/);
+      if (!match) return [];
+      const vqd = match[1];
+
+      // Step 2: fetch image results
+      const params = new URLSearchParams({ l: "us-en", o: "json", q: query, vqd, f: ",,,,,", p: "1" });
+      const searchResp = await fetch(`https://duckduckgo.com/i.js?${params}`);
+      const data = await searchResp.json();
+      const images: Array<{ filename: string; url: string; path: string; source: string; title: string }> = [];
+      const seen = new Set<string>();
+      for (const item of data.results || []) {
+        if (images.length >= max) break;
+        const imgUrl = item.image;
+        if (!imgUrl || seen.has(imgUrl)) continue;
+        seen.add(imgUrl);
+        const ext = imgUrl.match(/\.(png|webp|gif)/i)?.[1] || "jpg";
+        images.push({
+          filename: `img_${String(images.length).padStart(4, "0")}.${ext}`,
+          url: imgUrl, path: imgUrl, source: "duckduckgo",
+          title: (item.title || "").slice(0, 200),
+        });
+      }
+      return images;
+    } catch {
+      return [];
+    }
+  };
+
+  // ── Step 0: Search + gather ──
   const searchAndGather = async () => {
     if (!searchQuery.trim() || searching) return;
     setSearching(true);
@@ -242,20 +276,27 @@ export default function GoPage() {
     addSystemChat(`Searching for **"${searchQuery}"** images via DuckDuckGo...`);
 
     try {
-      const r = await fetch("/api/gather", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: searchQuery.trim(), max_images: 15 }),
-      });
-      const data = await r.json();
-      if (!r.ok) {
-        setError(data.detail || data.error || "search failed");
-        addSystemChat(`Search failed: ${data.detail || data.error || "unknown error"}`);
-        setSearching(false);
-        return;
+      // Try client-side DDG first (user's browser IP, not blocked)
+      let gathered = await ddgClientSearch(searchQuery.trim(), 15);
+
+      // Fall back to server-side Wikimedia if DDG fails
+      if (gathered.length === 0) {
+        addSystemChat(`DDG unavailable, trying Wikimedia Commons...`);
+        const r = await fetch("/api/gather", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: searchQuery.trim(), max_images: 15 }),
+        });
+        const data = await r.json();
+        if (!r.ok) {
+          setError(data.detail || data.error || "search failed");
+          addSystemChat(`Search failed: ${data.detail || data.error || "unknown error"}`);
+          setSearching(false);
+          return;
+        }
+        gathered = data.images || [];
       }
 
-      const gathered = data.images || [];
       setGatheredImages(gathered);
 
       if (gathered.length === 0) {
