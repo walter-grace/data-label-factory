@@ -1,0 +1,10 @@
+{
+  "name": "data-label-factory",
+  "private": true,
+  "scripts": {
+    "build": "cd web && npm install && npm run build"
+  },
+  "dependencies": {
+    "next": "16.2.2"
+  }
+}
