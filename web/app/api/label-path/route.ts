@@ -15,9 +15,9 @@ export async function POST(req: NextRequest) {
 
   if (!imgPath) return NextResponse.json({ error: "path/url required" }, { status: 400 });
 
-  const apiKey = process.env.LLM_API_KEY;
-  const baseUrl = process.env.LLM_BASE_URL || "https://openrouter.ai/api/v1";
-  const model = process.env.LLM_MODEL || "google/gemma-4-26b-a4b-it";
+  const apiKey = process.env.LLM_API_KEY?.trim();
+  const baseUrl = (process.env.LLM_BASE_URL || "https://openrouter.ai/api/v1").trim();
+  const model = (process.env.LLM_MODEL || "google/gemma-4-26b-a4b-it").trim();
 
   if (!apiKey) {
     return NextResponse.json({ error: "LLM_API_KEY not configured" }, { status: 500 });
