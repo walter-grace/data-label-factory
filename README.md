@@ -31,6 +31,64 @@ gather → filter → label → verify → export
 best.pt  ← custom YOLO model
 ```
 
+## Two ways to use this
+
+This repo ships **two product surfaces** on top of the same factory:
+
+### 1. Pay-per-call agent API — for AI agents and developers
+
+A Cloudflare-hosted gateway where strangers mint their own API keys with a crypto micropayment and call `/v1/{gather,label,train-yolo,predict}` directly. Every call debits `mcents` (1/1000¢). Designed for Claude Desktop / Cursor / cron-driven agents.
+
+- **Live at**: https://data-label-factory.vercel.app/agents — claim a key
+- **Walkthrough**: https://data-label-factory.vercel.app/how-it-works
+- **Machine-readable**: https://dlf-gateway.nico-zahniser.workers.dev/llms.txt
+- **MCP install manifest**: https://dlf-gateway.nico-zahniser.workers.dev/.well-known/mcp.json
+
+**Onboarding flow:**
+```
+Agent → /v1/signup → HTTP 402 (x402) → pay 0.10 USDC on Base
+      → Coinbase CDP verifies → mint dlf_<hex> key ($0.50 starter balance)
+```
+
+**Per-call pricing (live: `GET /v1/pricing`):**
+
+| Tool | mcents | USD |
+|------|--------|-----|
+| `crawl` (per page) | 50 | $0.00050 |
+| `gather` | 100 | $0.00100 |
+| `label` (per image) | 200 | $0.00200 |
+| `predict` (per image) | 20 | $0.00020 |
+| `train-yolo` (per job) | 2000 | $0.02000 |
+
+**MCP server** at `https://dlf-gateway.nico-zahniser.workers.dev/mcp` — drop into any MCP client with:
+```json
+{
+  "mcpServers": {
+    "data-label-factory": {
+      "transport": "http",
+      "url": "https://dlf-gateway.nico-zahniser.workers.dev/mcp",
+      "headers": { "Authorization": "Bearer dlf_YOUR_KEY" }
+    }
+  }
+}
+```
+
+8 tools available: `dlf_gather`, `dlf_label`, `dlf_crawl`, `dlf_train_yolo`, `dlf_train_status`, `dlf_balance`, `dlf_pricing`, `dlf_leaderboard`.
+
+**Subfolders:**
+- [`agent-gateway/`](./agent-gateway) — the Cloudflare Worker (KV-backed keys, Durable Object leaderboard, x402 signup with Coinbase CDP facilitator, scoped keys, refund policy, MCP server, Agent Readiness Level 4)
+- [`agent-farm/`](./agent-farm) — cron Worker that runs 3 Gemma agents every 20 min so the public leaderboard stays alive
+- [`agent-farm-think/`](./agent-farm-think) — same idea but rewritten on Cloudflare's Agents SDK (`agents@0.11`); each agent is a Durable Object with its own 20-min schedule and SQLite state
+- [`create-agent-gateway/`](./create-agent-gateway) — in-tree mirror of the [create-mcpay](https://github.com/walter-grace/create-mcpay) scaffolder (standalone repo + HF Space at [waltgrace/create-mcpay](https://huggingface.co/spaces/waltgrace/create-mcpay))
+
+### 2. Local CLI + Python package — for your own dataset
+
+The original factory: run the pipeline on your own laptop or Mac Mini, mix-and-match backends, produce a YOLO dataset you train wherever you want. **No account, no keys, no gateway.**
+
+Read on for the CLI flow ↓
+
+---
+
 ## Quick Start (3 commands)
 
 ```bash
@@ -256,3 +314,76 @@ See [`data_label_factory/identify/README.md`](data_label_factory/identify/README
 - **MLX** by Apple ML Research (MIT)
 - **mlx-vlm** by Prince Canuma (MIT)
 - **OpenRouter** for cloud model access
+- **Cloudflare** (Workers, Durable Objects, KV, AI Gateway, Browser Rendering) for the agent API
+- **Coinbase CDP** for x402 payment facilitation
+- **RunPod** for GPU serverless training + inference
+
+---
+
+## Agent API architecture
+
+```
+                                     ┌──────────────────────────────┐
+ Agent (Claude / Cursor / cron)      │ 1. Onboarding — x402 signup  │
+   │                                 │                              │
+   │ 1. GET /agents (Vercel)         │ Agent → HTTP 402 w/ quote    │
+   │ 2. POST /v1/signup              │ → pay 0.10 USDC on Base      │
+   │ 3. HTTP 402 + payment quote     │ → Coinbase CDP verify+settle │
+   │ 4. Sign USDC transfer           │ → mint dlf_<hex> key         │
+   │ 5. Retry w/ X-PAYMENT header    │   + 50,000 mcents ($0.50)    │
+   │ 6. Get dlf_<key> back           └──────────────────────────────┘
+   ▼
+┌──────────────────────────────────────────────────────────────────┐
+│ 2. Cloudflare Worker — dlf-gateway.nico-zahniser.workers.dev     │
+│ ┌────────────┬────────────┬────────────┬────────────┐            │
+│ │ authAndChg │ scope check│ refund     │ MCP server │            │
+│ │ debit mc   │ crawl/label│ 5xx→refund │ /mcp       │            │
+│ │ award XP   │ train/pred │ cap 5/hr   │ JSON-RPC   │            │
+│ └────────────┴────────────┴────────────┴────────────┘            │
+│     ▲                                              ▲             │
+│     │                                              │             │
+│ ┌───┴─────────┐                       ┌────────────┴─────────┐   │
+│ │ Workers KV  │                       │ Leaderboard DO       │   │
+│ │ api keys    │                       │ race-free XP +       │   │
+│ │ refunds_win │                       │ activity feed        │   │
+│ │ weights(7d) │                       │ badges               │   │
+│ └─────────────┘                       └──────────────────────┘   │
+└──────┬──────────────┬───────────────┬──────────────┬─────────────┘
+       │              │               │              │
+       ▼              ▼               ▼              ▼
+ ┌──────────┐  ┌──────────────┐  ┌─────────────┐  ┌────────────┐
+ │ gather   │  │ label        │  │ train-yolo  │  │ predict    │
+ │ Mac Mini │  │ AI Gateway → │  │ RunPod      │  │ RunPod     │
+ │ DDG proxy│  │ OpenRouter   │  │ YOLOv8n GPU │  │ infer GPU  │
+ │ (tunnel) │  │ Gemma vision │  │ serverless  │  │ weights=KV │
+ └──────────┘  └──────────────┘  └─────────────┘  └────────────┘
+
+ Background: dlf-agent-farm + dlf-agent-farm-think run 3 Gemma agents
+ every 20 min against the same gateway, so the /v1/leaderboard and
+ /v1/activity endpoints stay populated for the public /agents page.
+```
+
+### Key concepts
+
+- **mcents** = 1/1000 of a cent. All pricing is in mcents so sub-cent calls are cheap and legible (a full label run = 200 mcents = $0.002). Balances stored as integers in KV.
+- **x402** = the [x402 protocol](https://www.x402.org) — HTTP 402 Payment Required with a JSON quote; agent signs a USDC `transferWithAuthorization` and retries. No Stripe, no human in the loop. Coinbase CDP facilitator handles verify+settle on Base.
+- **Scoped keys** — every API key has a `scopes: Scope[]` array. Undefined = all-access (backwards compat). Set `["label","read"]` to mint a labeling-only key. Enforced in `authAndCharge` before any charge happens.
+- **Refund policy** — if OpenRouter 5xx's or the Vercel route returns `error: "Provider returned error"`, the gateway refunds the 200 mcents. Rate-capped at 5 refunds per key per hour so bad actors can't farm refunds with deliberately-broken URLs.
+- **Race-free leaderboard** — Durable Object serializes all XP/activity writes. KV's eventual-consistency reads would cause double-counting under burst traffic; DO is the one source of truth.
+- **Weights cache** — after train completes, the gateway fetches the 6 MB `.pt`, base64-encodes it, and stashes in KV under `weights_b64:<job_id>` with a 7-day TTL. Subsequent `predict` calls skip the 6 MB Vercel fetch.
+- **Agent Readiness Level 4** — the gateway serves `/robots.txt` with Content Signals, `/llms.txt`, `/sitemap.xml`, `/.well-known/{api-catalog,mcp.json,agent-skills/index.json}`, and RFC 8288 `Link` headers so crawlers like `isitagentready.com` can auto-discover the API.
+
+### Want to deploy your own?
+
+```bash
+cd agent-gateway
+npm install
+wrangler kv:namespace create KEYS                 # paste id into wrangler.toml
+wrangler secret put ADMIN_KEY                     # random 32-hex
+wrangler secret put PAYMENT_RECIPIENT             # 0x... Base wallet
+wrangler secret put CDP_API_KEY_ID                # optional; x402.org used otherwise
+wrangler secret put CDP_API_KEY_SECRET
+wrangler deploy
+```
+
+Full setup + architectural decisions documented in [`agent-gateway/README.md`](./agent-gateway/README.md). The same skeleton, stripped of DLF-specific routes, is packaged as [create-mcpay](https://github.com/walter-grace/create-mcpay) — a reusable template for any pay-per-call agent API (`npx create-mcpay my-api`).

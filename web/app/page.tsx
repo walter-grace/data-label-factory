@@ -5,6 +5,8 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import HeroAnimation from "@/components/HeroAnimation";
 import ScrollReveal from "@/components/ScrollReveal";
+import CountUp from "@/components/CountUp";
+import { useScrollY, useElementScrollProgress } from "@/components/useScroll";
 
 const TYPING_EXAMPLES = [
   "stop signs",
@@ -57,18 +59,27 @@ function useTypingPlaceholder() {
 export default function Home() {
   const [providers, setProviders] = useState<any[]>([]);
   const [query, setQuery] = useState("");
+  const [backendsLoaded, setBackendsLoaded] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const typingPlaceholder = useTypingPlaceholder();
+  const scrollY = useScrollY();
+  const pipeline = useElementScrollProgress<HTMLDivElement>();
 
   useEffect(() => {
     fetch("/api/dlf?path=/api/providers")
       .then((r) => r.json())
-      .then((d) => setProviders(d.providers ?? []))
-      .catch(() => {});
+      .then((d) => {
+        setProviders(d.providers ?? []);
+        setBackendsLoaded(true);
+      })
+      .catch(() => setBackendsLoaded(true));
   }, []);
 
   const alive = providers.filter((p) => p.alive);
+  const aliveCount = alive.length;
+  const scrolled = scrollY > 40;
+  const orbOffset = Math.min(scrollY * 0.25, 200); // parallax cap
 
   const handleGo = () => {
     if (query.trim()) {
@@ -78,8 +89,14 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
-      {/* Nav */}
-      <nav className="fixed top-0 z-50 w-full border-b border-white/5 bg-zinc-950/80 backdrop-blur-xl">
+      {/* Nav — blur + shadow intensifies once scrolled past hero */}
+      <nav
+        className={`fixed top-0 z-50 w-full border-b backdrop-blur-xl transition-all duration-300 ${
+          scrolled
+            ? "border-zinc-800/80 bg-zinc-950/95 shadow-lg shadow-black/40"
+            : "border-white/5 bg-zinc-950/60"
+        }`}
+      >
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2.5">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-xs font-black">
@@ -115,19 +132,35 @@ export default function Home() {
       <section className="relative overflow-hidden pt-14">
         {/* Background labeling animation */}
         <HeroAnimation />
-        {/* Gradient orb */}
-        <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 h-[600px] w-[900px] rounded-full bg-blue-600/8 blur-[120px]" />
+        {/* Gradient orb — parallax: moves slower than scroll for depth */}
+        <div
+          className="pointer-events-none absolute top-0 left-1/2 h-[600px] w-[900px] rounded-full bg-blue-600/8 blur-[120px]"
+          style={{
+            transform: `translate(-50%, ${orbOffset}px)`,
+            transition: "transform 120ms linear",
+            willChange: "transform",
+          }}
+        />
 
         <div className="relative mx-auto max-w-3xl px-6 pt-20 pb-12 text-center sm:pt-28 sm:pb-16">
-          {/* Status pill */}
-          <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900/80 px-4 py-1.5 text-[13px] text-zinc-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            {alive.length > 0
-              ? `${alive.length} AI backends online`
-              : "Connecting to backends..."}
+          {/* Status pill — shimmers while loading, count-up when live */}
+          <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900/80 px-4 py-1.5 text-[13px] text-zinc-400 mount-in" style={{ animationDelay: "0ms" }}>
+            {!backendsLoaded ? (
+              <>
+                <span className="h-1.5 w-1.5 rounded-full shimmer" style={{ borderRadius: "999px" }} />
+                <span>Connecting to backends&hellip;</span>
+              </>
+            ) : (
+              <>
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span>
+                  <CountUp value={aliveCount} duration={900} /> AI {aliveCount === 1 ? "backend" : "backends"} online
+                </span>
+              </>
+            )}
           </div>
 
-          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl sm:leading-[1.1]">
+          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl sm:leading-[1.1] mount-in" style={{ animationDelay: "120ms" }}>
             Train your agent&apos;s
             <br />
             <span className="bg-gradient-to-r from-blue-400 via-blue-300 to-cyan-400 bg-clip-text text-transparent">
@@ -135,13 +168,13 @@ export default function Home() {
             </span>
           </h1>
 
-          <p className="mx-auto mt-5 max-w-xl text-base text-zinc-400 sm:text-lg">
+          <p className="mx-auto mt-5 max-w-xl text-base text-zinc-400 sm:text-lg mount-in" style={{ animationDelay: "240ms" }}>
             Describe what you need to detect. Our AI pipeline builds a custom
             YOLO model — from text prompt to trained weights in minutes.
           </p>
 
           {/* Input box — the product IS the input */}
-          <div className="mx-auto mt-10 max-w-xl">
+          <div className="mx-auto mt-10 max-w-xl mount-in" style={{ animationDelay: "360ms" }}>
             <input
               ref={inputRef}
               type="text"
@@ -189,9 +222,18 @@ export default function Home() {
             </div>
           </ScrollReveal>
 
-          <div className="relative mt-14">
-            {/* Connection line */}
-            <div className="absolute top-8 left-[10%] right-[10%] hidden h-px bg-gradient-to-r from-transparent via-zinc-700 to-transparent sm:block" />
+          <div ref={pipeline.ref} className="relative mt-14">
+            {/* Connection line — faint rail + animated fill that tracks scroll */}
+            <div className="absolute top-8 left-[10%] right-[10%] hidden h-px bg-gradient-to-r from-transparent via-zinc-800 to-transparent sm:block" />
+            <div
+              className="absolute top-8 left-[10%] hidden h-px bg-gradient-to-r from-blue-500/0 via-blue-400 to-cyan-400 sm:block"
+              style={{
+                width: `${Math.max(0, Math.min(80, pipeline.progress * 100 * 1.2))}%`,
+                opacity: pipeline.progress > 0.05 ? 1 : 0,
+                transition: "width 200ms linear, opacity 400ms ease-out",
+                willChange: "width, opacity",
+              }}
+            />
 
             <div className="grid gap-8 sm:grid-cols-5">
               {[

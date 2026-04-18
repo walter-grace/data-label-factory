@@ -126,6 +126,71 @@ def _materialize(images, class_name, out_dir, progress):
     return train_count, val_count, data_yaml
 
 
+def _predict(inp, t0):
+    """Inference mode: load provided weights, run on one image, return bboxes."""
+    weights_b64 = inp.get("weights_b64")
+    image_url = inp.get("image_url")
+    if not weights_b64:
+        return {"ok": False, "error": "predict mode requires weights_b64"}
+    if not image_url:
+        return {"ok": False, "error": "predict mode requires image_url"}
+
+    with tempfile.TemporaryDirectory(prefix="yolo-infer-") as tmp:
+        tmp_path = Path(tmp)
+        weights_path = tmp_path / "model.pt"
+        try:
+            weights_path.write_bytes(base64.b64decode(weights_b64))
+        except Exception as e:
+            return {"ok": False, "error": f"weights decode failed: {e}"}
+
+        try:
+            r = requests.get(image_url, timeout=20)
+            r.raise_for_status()
+        except Exception as e:
+            return {"ok": False, "error": f"image fetch failed: {e}"}
+        img_path = tmp_path / "input.jpg"
+        img_path.write_bytes(r.content)
+
+        try:
+            img = Image.open(img_path)
+            img_w, img_h = img.size
+        except Exception:
+            img_w, img_h = 0, 0
+
+        from ultralytics import YOLO
+        model = YOLO(str(weights_path))
+        results = model(str(img_path), verbose=False)
+
+        preds = []
+        for res in results:
+            names = getattr(res, "names", {}) or {}
+            boxes = getattr(res, "boxes", None)
+            if boxes is None:
+                continue
+            for box in boxes:
+                try:
+                    xyxy = box.xyxy[0].tolist()
+                    cls_id = int(box.cls[0])
+                    conf = float(box.conf[0])
+                    name = names.get(cls_id, f"class_{cls_id}") if isinstance(names, dict) else f"class_{cls_id}"
+                    preds.append({
+                        "bbox": [int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3])],
+                        "category": str(name),
+                        "score": round(conf, 4),
+                    })
+                except Exception:
+                    continue
+
+        return {
+            "ok": True,
+            "mode": "predict",
+            "n_detections": len(preds),
+            "predictions": preds,
+            "image_size": [img_w, img_h],
+            "elapsed_seconds": round(time.time() - t0, 2),
+        }
+
+
 def handler(job):
     t0 = time.time()
     try:
@@ -150,8 +215,22 @@ def handler(job):
     if not HEAVY_DEPS_OK:
         return {"ok": False, "error": "requests/Pillow missing in worker"}
 
+    inp = job.get("input") or {}
+    mode = (inp.get("mode") or "train").lower()
+
+    if mode == "predict":
+        try:
+            return _predict(inp, t0)
+        except Exception as e:
+            return {
+                "ok": False,
+                "mode": "predict",
+                "error": str(e)[:500],
+                "trace": traceback.format_exc().splitlines()[-8:],
+                "elapsed": round(time.time() - t0, 2),
+            }
+
     try:
-        inp = job.get("input") or {}
         query = (inp.get("query") or "object").strip()
         images = inp.get("images") or []
         epochs = int(inp.get("epochs", 20))

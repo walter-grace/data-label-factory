@@ -1,0 +1,44 @@
+name = "dlf-agent-farm-think"
+main = "src/index.ts"
+compatibility_date = "2026-04-18"
+compatibility_flags = ["nodejs_compat"]
+
+# Agents-SDK version of dlf-agent-farm. Each of the 3 Gemma agents is a
+# Durable Object actor with SQLite state + its own 20-minute schedule.
+# Deploy alongside the classic farm; retire the classic one once validated.
+
+[vars]
+GATEWAY_URL = "https://dlf-gateway.nico-zahniser.workers.dev"
+MIN_BALANCE_MCENTS = "1000"
+
+# Service binding to the gateway Worker (same account → must use binding, not
+# public fetch, or CF returns error code 1042).
+[[services]]
+binding = "GATEWAY"
+service = "dlf-gateway"
+
+[[durable_objects.bindings]]
+name = "ORCHESTRATOR"
+class_name = "Orchestrator"
+
+[[durable_objects.bindings]]
+name = "SCOUT"
+class_name = "Scout"
+
+[[durable_objects.bindings]]
+name = "SPECIALIST"
+class_name = "Specialist"
+
+[[durable_objects.bindings]]
+name = "EXPLORER"
+class_name = "Explorer"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Orchestrator", "Scout", "Specialist", "Explorer"]
+
+# Safety-net cron that touches the orchestrator daily. Each child agent's own
+# scheduleEvery keeps it ticking between these; this only matters for cold
+# deployments where no DOs exist yet.
+[triggers]
+crons = ["0 */12 * * *"]

@@ -1,0 +1,28 @@
+name = "dlf-agent-farm"
+main = "src/index.ts"
+compatibility_date = "2026-04-18"
+
+# Cron-driven sibling to dlf-gateway. Keeps the public /agents leaderboard
+# moving by having the 3 Gemma agents do small gather+label runs on a
+# schedule.
+#
+# Secrets (set via `wrangler secret put`):
+#   SCOUT_KEY        Gemma-Scout API key
+#   SPECIALIST_KEY   Gemma-Specialist API key
+#   EXPLORER_KEY     Gemma-Explorer API key
+#
+# Manual trigger: POST https://dlf-agent-farm.<sub>.workers.dev/run
+
+[vars]
+GATEWAY_URL = "https://dlf-gateway.nico-zahniser.workers.dev"
+MIN_BALANCE_MCENTS = "1000"
+
+# Service binding required: same-account Worker-to-Worker via public fetch
+# triggers CF error 1042 ("sub-worker redirect"). Binding calls the gateway
+# Worker directly.
+[[services]]
+binding = "GATEWAY"
+service = "dlf-gateway"
+
+[triggers]
+crons = ["*/20 * * * *"]

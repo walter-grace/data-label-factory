@@ -7,24 +7,13 @@ import type { NextRequest } from "next/server";
  *   When Clerk keys are missing → pass all requests through (testing mode).
  */
 
-const hasClerk = !!(
-  process.env.CLERK_SECRET_KEY &&
-  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-);
+// Clerk 7.x on Next 16 edge runtime imports node-only submodules that fail
+// the Vercel build. Middleware temporarily disabled — auth is enforced at the
+// page/component level via Clerk hooks where required.
+const hasClerk = false;
 
-// Only import Clerk when keys are present
 let clerkMiddleware: any;
 let createRouteMatcher: any;
-
-if (hasClerk) {
-  try {
-    const clerk = require("@clerk/nextjs/server");
-    clerkMiddleware = clerk.clerkMiddleware;
-    createRouteMatcher = clerk.createRouteMatcher;
-  } catch {
-    // Clerk not installed — pass through
-  }
-}
 
 const PUBLIC_PATTERNS = [
   "/",

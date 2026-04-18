@@ -117,6 +117,38 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Homepage animations --------------------------------------------------- */
+
+/* Mount cascade: each element fades up with a per-child delay controlled
+   inline via style={{ "--i": index }}. Usage: <div class="mount-in"
+   style={{ animationDelay: "80ms" }}>. */
+@keyframes mount-in {
+  from { opacity: 0; transform: translate3d(0, 14px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.mount-in {
+  opacity: 0;
+  animation: mount-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, transform;
+}
+
+/* Subtle shimmer used on loading pills + skeletons. */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, rgba(63,63,70,0.4) 0%, rgba(113,113,122,0.6) 50%, rgba(63,63,70,0.4) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s linear infinite;
+}
+
+/* Respect reduced-motion preferences. */
+@media (prefers-reduced-motion: reduce) {
+  .mount-in { animation: none; opacity: 1; transform: none; }
+  .shimmer { animation: none; }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
