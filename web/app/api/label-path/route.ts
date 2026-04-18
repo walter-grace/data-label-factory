@@ -24,19 +24,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Fetch the image and convert to base64
-    const imgResp = await fetch(imgPath, { signal: AbortSignal.timeout(10000) });
-    if (!imgResp.ok) {
-      return NextResponse.json({
-        annotations: [], elapsed: 0, backend, image_size: [0, 0],
-        n_detections: 0, path: imgPath, error: `Failed to fetch image: ${imgResp.status}`,
-      });
-    }
-    const imgBuffer = await imgResp.arrayBuffer();
-    const contentType = imgResp.headers.get("content-type") || "image/jpeg";
-    const b64 = Buffer.from(imgBuffer).toString("base64");
-    const dataUrl = `data:${contentType};base64,${b64}`;
-
     const queryList = queries.split(",").map((q: string) => q.trim());
     const prompt = `You are an object detection model. Find all instances of: ${queryList.join(", ")} in this image.
 
@@ -61,7 +48,7 @@ Output ONLY the JSON array, no markdown, no explanation. If nothing found, outpu
             role: "user",
             content: [
               { type: "text", text: prompt },
-              { type: "image_url", image_url: { url: dataUrl } },
+              { type: "image_url", image_url: { url: imgPath } },
             ],
           },
         ],
@@ -72,6 +59,13 @@ Output ONLY the JSON array, no markdown, no explanation. If nothing found, outpu
 
     const elapsed = (Date.now() - start) / 1000;
     const llmData = await llmResp.json();
+    if (!llmResp.ok || llmData.error) {
+      const errMsg = llmData.error?.message || `LLM HTTP ${llmResp.status}`;
+      return NextResponse.json({
+        annotations: [], elapsed, backend, image_size: [0, 0],
+        n_detections: 0, path: imgPath, error: errMsg,
+      });
+    }
     const text = llmData.choices?.[0]?.message?.content || "[]";
 
     // Parse the JSON from the LLM response
