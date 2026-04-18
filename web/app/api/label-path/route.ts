@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 /**
- * POST /api/label-path — label an image using OpenRouter (Gemma 4).
- * On Vercel: receives image URL (not path), fetches it, sends to LLM.
- * Locally: the Python backend handles this via filesystem paths.
+ * POST /api/label-path — label an image.
+ *   backend="openrouter" → Gemma 4 via OpenRouter (default)
+ *   backend="falcon"     → Falcon Perception on Mac Mini via Cloudflare tunnel
  */
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const imgPath = (body.path || "").trim(); // URL on Vercel, path locally
+  const imgPath = (body.path || "").trim();
   const queries = body.queries || "object";
   const backend = body.backend || "openrouter";
 
   if (!imgPath) return NextResponse.json({ error: "path/url required" }, { status: 400 });
+
+  if (backend === "falcon") {
+    return labelWithFalcon(imgPath, queries);
+  }
 
   const apiKey = process.env.LLM_API_KEY?.trim();
   const baseUrl = (process.env.LLM_BASE_URL || "https://openrouter.ai/api/v1").trim();
@@ -97,6 +101,80 @@ Output ONLY the JSON array, no markdown, no explanation. If nothing found, outpu
     return NextResponse.json({
       annotations: [], elapsed: 0, backend, image_size: [0, 0],
       n_detections: 0, path: imgPath, error: e.message,
+    });
+  }
+}
+
+async function labelWithFalcon(imgUrl: string, queries: string) {
+  const proxyUrl = process.env.FALCON_PROXY_URL?.trim();
+  if (!proxyUrl) {
+    return NextResponse.json({
+      annotations: [], elapsed: 0, backend: "falcon", image_size: [0, 0],
+      n_detections: 0, path: imgUrl, error: "FALCON_PROXY_URL not configured",
+    });
+  }
+
+  const start = Date.now();
+  try {
+    const imgResp = await fetch(imgUrl, { signal: AbortSignal.timeout(15000) });
+    if (!imgResp.ok) {
+      return NextResponse.json({
+        annotations: [], elapsed: 0, backend: "falcon", image_size: [0, 0],
+        n_detections: 0, path: imgUrl, error: `Failed to fetch image: ${imgResp.status}`,
+      });
+    }
+    const imgBlob = await imgResp.blob();
+    const contentType = imgResp.headers.get("content-type") || "image/jpeg";
+    const ext = contentType.split("/")[1]?.split(";")[0] || "jpg";
+
+    const form = new FormData();
+    form.append("image", imgBlob, `image.${ext}`);
+    form.append("query", queries);
+
+    const falconResp = await fetch(`${proxyUrl.replace(/\/$/, "")}/api/falcon`, {
+      method: "POST",
+      body: form,
+      signal: AbortSignal.timeout(55000),
+    });
+    const data = await falconResp.json();
+    const elapsed = (Date.now() - start) / 1000;
+
+    if (!falconResp.ok || data.error) {
+      return NextResponse.json({
+        annotations: [], elapsed, backend: "falcon", image_size: [0, 0],
+        n_detections: 0, path: imgUrl, error: data.error || `Falcon HTTP ${falconResp.status}`,
+      });
+    }
+
+    const [iw, ih] = data.image_size || [0, 0];
+    const annotations = (data.masks || []).map((m: any) => {
+      const { x1, y1, x2, y2 } = m.bbox_norm || {};
+      return {
+        category: queries.split(",")[0].trim(),
+        bbox: [
+          Math.round(x1 * iw),
+          Math.round(y1 * ih),
+          Math.round((x2 - x1) * iw),
+          Math.round((y2 - y1) * ih),
+        ],
+        score: m.score ?? 0.9,
+        pass_rate: 1.0,
+        failed_rules: [],
+      };
+    });
+
+    return NextResponse.json({
+      annotations,
+      elapsed: Math.round(elapsed * 100) / 100,
+      backend: "falcon",
+      image_size: [iw, ih],
+      n_detections: annotations.length,
+      path: imgUrl,
+    });
+  } catch (e: any) {
+    return NextResponse.json({
+      annotations: [], elapsed: (Date.now() - start) / 1000, backend: "falcon",
+      image_size: [0, 0], n_detections: 0, path: imgUrl, error: e.message,
     });
   }
 }
