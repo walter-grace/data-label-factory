@@ -61,6 +61,7 @@ const PUBLIC_PATTERNS = [
   "/api/templates(.*)",
   "/api/gather(.*)",
   "/api/label-path(.*)",
+  "/api/train-yolo(.*)",
   "/backend(.*)",
 ];
 
