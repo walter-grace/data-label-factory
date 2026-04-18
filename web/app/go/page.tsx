@@ -159,11 +159,14 @@ export default function GoPage() {
           caps: p.capabilities || [],
         }));
         setAvailableBackends(providers);
-        // Pick best available label backend: falcon > flywheel > openrouter
+        // Pick best available label backend: auto > falcon > openrouter
+        const auto = providers.find((p: any) => p.name === "auto" && p.alive && p.caps.includes("label"));
         const falcon = providers.find((p: any) => p.name === "falcon" && p.alive && p.caps.includes("label"));
-        const flywheel = providers.find((p: any) => p.name === "flywheel" && p.alive && p.caps.includes("label"));
         const openrouter = providers.find((p: any) => p.name === "openrouter" && p.alive && p.caps.includes("label"));
-        if (falcon) {
+        if (auto) {
+          setLabelBackend("auto");
+          addSystemChat("Auto-labeling — Falcon first, Gemma when Falcon finds nothing.");
+        } else if (falcon) {
           setLabelBackend("falcon");
           addSystemChat("Falcon Perception detected — using precise bbox labeling.");
         } else if (openrouter) {
@@ -866,7 +869,12 @@ export default function GoPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-2xl font-bold">Results</h2>
-                    {labelBackend === "falcon" ? (
+                    {labelBackend === "auto" ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-fuchsia-500/40 bg-fuchsia-500/10 px-2.5 py-0.5 text-xs font-medium text-fuchsia-300">
+                        <span className="h-1.5 w-1.5 rounded-full bg-fuchsia-400" />
+                        Auto: Falcon → Gemma fallback
+                      </span>
+                    ) : labelBackend === "falcon" ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-300">
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                         Labeled by Falcon Perception
