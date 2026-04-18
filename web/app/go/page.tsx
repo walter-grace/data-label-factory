@@ -864,7 +864,20 @@ export default function GoPage() {
             <div className="max-w-5xl mx-auto">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold">Results</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-2xl font-bold">Results</h2>
+                    {labelBackend === "falcon" ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-300">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                        Labeled by Falcon Perception
+                      </span>
+                    ) : labelBackend === "openrouter" ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/40 bg-sky-500/10 px-2.5 py-0.5 text-xs font-medium text-sky-300">
+                        <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
+                        Labeled by Gemma 4
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="text-sm text-zinc-400 mt-1">
                     {processed.filter((p) => !p.error).length} / {processed.length} extracted.
                     Corrections feed the Flywheel — every edit makes the next run better.
