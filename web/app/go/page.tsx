@@ -127,6 +127,21 @@ export default function GoPage() {
   const [swarmRequested, setSwarmRequested] = useState(false);
   const [swarmResult, setSwarmResult] = useState<{ ok: boolean; reason?: string; post_id?: string } | null>(null);
 
+  // ── Train YOLO job state ──
+  type TrainJob = {
+    jobId: string;
+    status: "IN_QUEUE" | "IN_PROGRESS" | "COMPLETED" | "FAILED" | "CANCELLED" | "starting";
+    progress: { stage?: string; epoch?: number; total_epochs?: number; done?: number; total?: number; kept?: number; train?: number; val?: number } | null;
+    error?: string;
+    output?: any;
+    startedAt: number;
+    elapsedMs?: number;
+    hasWeights?: boolean;
+    className?: string;
+    metrics?: Record<string, number>;
+  };
+  const [trainJob, setTrainJob] = useState<TrainJob | null>(null);
+
   // Chat state
   const [chatOpen, setChatOpen] = useState(true);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
@@ -236,6 +251,102 @@ export default function GoPage() {
       { id: `s-${Date.now()}`, role: "assistant", content: msg },
     ]);
   }, []);
+
+  // ── Train YOLO: start handler ──
+  const startTrainYolo = async () => {
+    const labeled = processed.filter((p) => p.image_url && p.annotations?.length);
+    if (labeled.length === 0) return;
+    setTrainJob({ jobId: "", status: "starting", progress: null, startedAt: Date.now() });
+    try {
+      const r = await fetch("/api/train-yolo/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: searchQuery || "object",
+          images: labeled.map((p) => ({
+            url: p.image_url,
+            image_size: p.image_size,
+            annotations: p.annotations,
+          })),
+          epochs: 20,
+        }),
+      });
+      const data = await r.json();
+      if (!data.ok) {
+        addSystemChat(`Train YOLO failed to start: ${data.error || "unknown error"}`);
+        setTrainJob(null);
+        return;
+      }
+      setTrainJob({
+        jobId: data.job_id,
+        status: "IN_QUEUE",
+        progress: null,
+        startedAt: Date.now(),
+      });
+      addSystemChat(`Training YOLOv8 on ${labeled.length} images — polling RunPod...`);
+    } catch (e: any) {
+      addSystemChat(`Train YOLO failed to start: ${e.message}`);
+      setTrainJob(null);
+    }
+  };
+
+  // ── Train YOLO: poll status ──
+  useEffect(() => {
+    if (!trainJob || !trainJob.jobId) return;
+    const terminal = ["COMPLETED", "FAILED", "CANCELLED"];
+    if (terminal.includes(trainJob.status)) return;
+    let cancelled = false;
+    const jobId = trainJob.jobId;
+    const interval = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/train-yolo/status/${jobId}`);
+        const data = await r.json();
+        if (cancelled) return;
+        setTrainJob((prev) => {
+          if (!prev || prev.jobId !== jobId) return prev;
+          const nextStatus = (data.status || prev.status) as TrainJob["status"];
+          const prevStatus: string = prev.status;
+          const elapsedMs = Date.now() - prev.startedAt;
+          const out = data.output || {};
+          const isCompleted = nextStatus === "COMPLETED";
+          const isFailed = nextStatus === "FAILED" || nextStatus === "CANCELLED";
+          if (isCompleted && prevStatus !== "COMPLETED") {
+            if (out.ok) {
+              const metrics = out.metrics || {};
+              const metricStr = Object.entries(metrics)
+                .map(([k, v]) => `${k}: ${typeof v === "number" ? (v as number).toFixed(3) : v}`)
+                .join(", ");
+              addSystemChat(
+                `YOLO training complete${out.class_name ? ` for **${out.class_name}**` : ""}.${metricStr ? ` ${metricStr}.` : ""} Weights ready to download.`,
+              );
+            } else {
+              addSystemChat(`Training finished but reported an issue: ${out.error || "no weights"}`);
+            }
+          }
+          if (isFailed && prevStatus !== "FAILED" && prevStatus !== "CANCELLED") {
+            addSystemChat(`Training failed: ${out.error || "training failed"}`);
+          }
+          return {
+            ...prev,
+            status: nextStatus,
+            progress: data.progress || prev.progress,
+            output: data.output ?? prev.output,
+            elapsedMs,
+            hasWeights: !!data.has_weights && out.ok,
+            className: out.class_name || prev.className,
+            metrics: out.metrics || prev.metrics,
+            error: isFailed ? out.error || "training failed" : prev.error,
+          };
+        });
+      } catch {
+        /* transient fetch error — keep polling */
+      }
+    }, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [trainJob?.jobId, trainJob?.status, addSystemChat]);
 
   // ── Step 0: Search + gather ──
   const searchAndGather = async () => {
@@ -966,6 +1077,26 @@ export default function GoPage() {
                       {swarmResult.ok ? "Posted to Moltbook" : swarmResult.reason?.includes("claim") ? "Pending claim" : "Pending"}
                     </span>
                   )}
+                  {/* Train YOLO — kick off a RunPod training run on the labeled batch */}
+                  {processed.some((p) => p.annotations?.length) && (() => {
+                    const running = !!trainJob && trainJob.status !== "COMPLETED" && trainJob.status !== "FAILED" && trainJob.status !== "CANCELLED";
+                    return (
+                      <button
+                        onClick={startTrainYolo}
+                        disabled={running}
+                        className={`rounded-xl bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 px-5 py-2 text-sm font-semibold text-white ${running ? "opacity-60 cursor-not-allowed" : ""}`}
+                      >
+                        {running ? (
+                          <span className="inline-flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                            Training...
+                          </span>
+                        ) : (
+                          "Train YOLO →"
+                        )}
+                      </button>
+                    );
+                  })()}
                   <button
                     onClick={() => { setStage("drop"); setFiles([]); setDetected([]); setProcessed([]); setGatheredImages([]); }}
                     className="rounded-xl border border-zinc-700 hover:border-zinc-500 px-4 py-2 text-sm"
@@ -974,6 +1105,126 @@ export default function GoPage() {
                   </button>
                 </div>
               </div>
+
+              {/* Train YOLO progress panel */}
+              {trainJob && (() => {
+                const s = trainJob.status;
+                const pillClass =
+                  s === "starting" || s === "IN_QUEUE"
+                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                    : s === "IN_PROGRESS"
+                      ? "bg-sky-500/20 text-sky-300 border border-sky-500/40"
+                      : s === "COMPLETED"
+                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                        : "bg-rose-500/20 text-rose-300 border border-rose-500/40";
+                const pillLabel =
+                  s === "starting"
+                    ? "Starting"
+                    : s === "IN_QUEUE"
+                      ? "Queued"
+                      : s === "IN_PROGRESS"
+                        ? "Running"
+                        : s === "COMPLETED"
+                          ? "Done"
+                          : s === "CANCELLED"
+                            ? "Cancelled"
+                            : "Failed";
+                const prog = trainJob.progress || {};
+                let statusText = "Starting up...";
+                if (s === "IN_QUEUE") statusText = "Queued on RunPod";
+                else if (s === "COMPLETED") statusText = "Done";
+                else if (s === "FAILED" || s === "CANCELLED") statusText = `Failed — ${trainJob.error || "unknown error"}`;
+                else if (s === "IN_PROGRESS") {
+                  if (prog.stage === "downloading" && typeof prog.done === "number" && typeof prog.total === "number") {
+                    statusText = `Downloading images (${prog.done}/${prog.total})`;
+                  } else if (prog.stage === "training" && typeof prog.epoch === "number" && typeof prog.total_epochs === "number") {
+                    statusText = `Training — epoch ${prog.epoch}/${prog.total_epochs}`;
+                  } else if (prog.stage === "uploading") {
+                    statusText = "Uploading weights";
+                  } else if (prog.stage) {
+                    statusText = prog.stage.charAt(0).toUpperCase() + prog.stage.slice(1);
+                  } else {
+                    statusText = "Running";
+                  }
+                }
+                // Progress bar calc
+                let barPct: number | null = null;
+                if (typeof prog.epoch === "number" && typeof prog.total_epochs === "number" && prog.total_epochs > 0) {
+                  barPct = Math.min(100, (prog.epoch / prog.total_epochs) * 100);
+                } else if (typeof prog.done === "number" && typeof prog.total === "number" && prog.total > 0) {
+                  barPct = Math.min(100, (prog.done / prog.total) * 100);
+                }
+                const elapsedTotal = trainJob.elapsedMs ?? (Date.now() - trainJob.startedAt);
+                const mins = Math.floor(elapsedTotal / 60000);
+                const secs = Math.floor((elapsedTotal % 60000) / 1000);
+                const elapsedStr = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+                return (
+                  <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 relative">
+                    <button
+                      onClick={() => setTrainJob(null)}
+                      className="absolute top-3 right-3 text-xs text-zinc-500 hover:text-zinc-200"
+                    >
+                      Dismiss
+                    </button>
+                    <div className="flex items-center justify-between pr-16">
+                      <div>
+                        <h3 className="text-lg font-semibold">Training YOLOv8 on Dataset</h3>
+                        <div className="text-xs text-zinc-500 mt-0.5">
+                          {statusText}
+                          {trainJob.className ? ` · class: ${trainJob.className}` : ""}
+                        </div>
+                      </div>
+                      <span className={`text-xs px-2.5 py-1 rounded-full ${pillClass}`}>
+                        {pillLabel}
+                      </span>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="mt-4 h-2 w-full rounded-full bg-zinc-800 overflow-hidden">
+                      {barPct !== null ? (
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-amber-500 to-rose-500 transition-all"
+                          style={{ width: `${barPct}%` }}
+                        />
+                      ) : s === "COMPLETED" ? (
+                        <div className="h-full w-full rounded-full bg-gradient-to-r from-amber-500 to-rose-500" />
+                      ) : (
+                        <div className="h-full w-1/3 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 animate-pulse" />
+                      )}
+                    </div>
+
+                    {/* Metrics + elapsed */}
+                    <div className="mt-4 flex items-end justify-between gap-4 flex-wrap">
+                      <div className="text-xs text-zinc-500">Elapsed {elapsedStr}</div>
+                      {trainJob.metrics && Object.keys(trainJob.metrics).length > 0 && (
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+                          {Object.entries(trainJob.metrics).map(([k, v]) => (
+                            <div key={k} className="flex items-center gap-2">
+                              <span className="text-zinc-500">{k}</span>
+                              <span className="text-zinc-100 font-mono">
+                                {typeof v === "number" ? v.toFixed(3) : String(v)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Download button */}
+                    {s === "COMPLETED" && trainJob.hasWeights && (
+                      <div className="mt-4">
+                        <a
+                          href={`/api/train-yolo/weights/${trainJob.jobId}`}
+                          download
+                          className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white"
+                        >
+                          Download best.pt
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Image grid view for gathered results */}
               {viewMode === "grid" && processed.some((p) => p.template_used.startsWith("ddg:")) && (
