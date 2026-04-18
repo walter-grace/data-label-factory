@@ -891,7 +891,7 @@ export default function GoPage() {
                     Corrections feed the Flywheel — every edit makes the next run better.
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {/* View toggle for gathered images */}
                   {processed.some((p) => p.template_used.startsWith("ddg:")) && (
                     <div className="flex rounded-lg border border-zinc-700 overflow-hidden">
@@ -909,17 +909,20 @@ export default function GoPage() {
                       </button>
                     </div>
                   )}
-                  <button onClick={exportCSV} className="rounded-xl bg-blue-600 hover:bg-blue-500 px-5 py-2 text-sm font-semibold">
-                    Export CSV
-                  </button>
-                  <button onClick={exportJSON} className="rounded-xl border border-zinc-700 hover:border-zinc-500 px-5 py-2 text-sm">
-                    Export JSON
-                  </button>
-                  {processed.some((p) => p.annotations?.length) && (
-                    <button onClick={exportCOCO} className="rounded-xl border border-emerald-600/50 hover:border-emerald-500 px-5 py-2 text-sm text-emerald-300">
-                      Export COCO
+                  {/* Export cluster: CSV primary, JSON/COCO tertiary siblings */}
+                  <div className="flex items-center gap-1.5">
+                    <button onClick={exportCSV} className="rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-2 text-sm font-semibold">
+                      Export CSV
                     </button>
-                  )}
+                    <button onClick={exportJSON} className="rounded-xl border border-zinc-700 hover:border-zinc-500 px-4 py-2 text-sm text-zinc-300">
+                      JSON
+                    </button>
+                    {processed.some((p) => p.annotations?.length) && (
+                      <button onClick={exportCOCO} className="rounded-xl border border-zinc-700 hover:border-zinc-500 px-4 py-2 text-sm text-zinc-300">
+                        COCO
+                      </button>
+                    )}
+                  </div>
                   {/* Agent swarm — post to Moltbook for help labeling */}
                   {processed.length > 0 && !swarmRequested && (
                     <button
@@ -953,7 +956,7 @@ export default function GoPage() {
                           setSwarmResult({ ok: false, reason: e.message });
                         }
                       }}
-                      className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 px-5 py-2 text-sm font-semibold shadow-lg shadow-violet-500/20"
+                      className="rounded-xl bg-gradient-to-r from-violet-700 to-blue-700 hover:from-violet-600 hover:to-blue-600 px-4 py-2 text-sm font-semibold"
                     >
                       Request Agent Swarm
                     </button>
@@ -1013,7 +1016,7 @@ export default function GoPage() {
                                     height: `${(bh / imgH) * 100}%`,
                                   }}
                                 >
-                                  <span className="absolute -top-4 left-0 bg-emerald-600 text-white text-[8px] px-1 rounded whitespace-nowrap leading-tight">
+                                  <span className="absolute top-px left-px bg-emerald-500/90 text-emerald-950 font-medium text-[10px] px-1 py-0.5 rounded-sm whitespace-nowrap leading-tight">
                                     {ann.category} {(ann.score * 100).toFixed(0)}%
                                   </span>
                                 </div>
@@ -1029,11 +1032,6 @@ export default function GoPage() {
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-2">
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] text-white truncate">{p.filename}</span>
-                            {anns.length > 0 && (
-                              <span className="text-[10px] bg-emerald-600/80 text-white px-1.5 rounded-full">
-                                {anns.length} bbox{anns.length > 1 ? "es" : ""}
-                              </span>
-                            )}
                           </div>
                         </div>
                         {p.error && (
