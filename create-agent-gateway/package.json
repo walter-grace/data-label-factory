@@ -1,0 +1,26 @@
+{
+  "name": "create-agent-gateway",
+  "version": "0.1.0",
+  "description": "Cloudflare Worker template for pay-per-call agent gateways: x402 signup, mcent pricing, scoped keys, XP leaderboard, MCP server, Agent Readiness.",
+  "bin": {
+    "create-agent-gateway": "./bin/create.js"
+  },
+  "keywords": [
+    "cloudflare-workers",
+    "agents",
+    "x402",
+    "mcp",
+    "durable-objects",
+    "agent-gateway"
+  ],
+  "license": "MIT",
+  "files": [
+    "src/",
+    "bin/",
+    "README.md",
+    "template/"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}
