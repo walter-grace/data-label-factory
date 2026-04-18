@@ -1,0 +1,42 @@
+name = "dlf-gateway"
+main = "src/index.ts"
+compatibility_date = "2026-04-17"
+
+# Public agent gateway for Data Label Factory.
+# Exposes /v1/crawl, /v1/gather, /v1/label, /v1/train-yolo/* over pay-per-call
+# API keys backed by Workers KV.
+#
+# Deploy: wrangler deploy
+# Dev:    wrangler dev --local
+#
+# Required vars (set via `wrangler secret put`):
+#   CF_ACCOUNT_ID           — for Browser Rendering /crawl
+#   CF_API_TOKEN            — scoped: Browser Rendering Edit
+#   DLF_VERCEL_BASE_URL     — e.g. https://data-label-factory.vercel.app
+#   ADMIN_KEY               — bearer token for /v1/admin/* (create keys, top up)
+#
+# KV binding:
+#   KEYS — stores { balance_cents: number, created_at: number, label: string } by api key
+
+[vars]
+# Defaults; override via `wrangler secret put` for production values
+DLF_VERCEL_BASE_URL = "https://data-label-factory.vercel.app"
+
+[[kv_namespaces]]
+binding = "KEYS"
+id = "02983ae980df4abaa4a4c9ad929f8080"
+
+# Durable Object for leaderboard + activity feed (serializes concurrent writes).
+[[durable_objects.bindings]]
+name = "LEADERBOARD"
+class_name = "LeaderboardDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["LeaderboardDO"]
+
+# Pricing (cents) — override in code if needed.
+# crawl:      1¢/page
+# gather:     0.1¢ (rounded up to 1¢)
+# label:      0.2¢/image (rounded up)
+# train-yolo: 5¢/job

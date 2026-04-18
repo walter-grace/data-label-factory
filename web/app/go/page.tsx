@@ -118,6 +118,8 @@ export default function GoPage() {
   const [progress, setProgress] = useState({ done: 0, total: 0, current: "" });
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [imageCount, setImageCount] = useState<number>(15);
+  const [trainEpochs, setTrainEpochs] = useState<number>(20);
   const [searching, setSearching] = useState(false);
   const [gatheredImages, setGatheredImages] = useState<Array<{ filename: string; url: string; path: string }>>([]);
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
@@ -268,7 +270,7 @@ export default function GoPage() {
             image_size: p.image_size,
             annotations: p.annotations,
           })),
-          epochs: 20,
+          epochs: trainEpochs,
         }),
       });
       const data = await r.json();
@@ -359,7 +361,7 @@ export default function GoPage() {
       const r = await fetch("/api/gather", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: searchQuery.trim(), max_images: 15 }),
+        body: JSON.stringify({ query: searchQuery.trim(), max_images: imageCount }),
       });
       const data = await r.json();
       if (!r.ok) {
@@ -844,14 +846,30 @@ export default function GoPage() {
                     onSubmit={(e) => { e.preventDefault(); searchAndGather(); }}
                     className="space-y-3"
                   >
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder='e.g. "fire hydrants in cities"'
-                      disabled={searching}
-                      className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none disabled:opacity-50"
-                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder='e.g. "fire hydrants in cities"'
+                        disabled={searching}
+                        className="flex-1 rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none disabled:opacity-50"
+                      />
+                      <label className="flex items-center gap-1 text-xs text-zinc-500 uppercase tracking-wide">
+                        Images
+                        <select
+                          value={imageCount}
+                          onChange={(e) => setImageCount(Number(e.target.value))}
+                          disabled={searching}
+                          className="rounded-lg bg-zinc-900 border border-zinc-700 text-sm px-2 py-1 text-zinc-200 disabled:opacity-50"
+                        >
+                          <option value={15}>15</option>
+                          <option value={30}>30</option>
+                          <option value={50}>50</option>
+                          <option value={100}>100</option>
+                        </select>
+                      </label>
+                    </div>
                     <button
                       type="submit"
                       disabled={searching || !searchQuery.trim()}
@@ -1081,20 +1099,36 @@ export default function GoPage() {
                   {processed.some((p) => p.annotations?.length) && (() => {
                     const running = !!trainJob && trainJob.status !== "COMPLETED" && trainJob.status !== "FAILED" && trainJob.status !== "CANCELLED";
                     return (
-                      <button
-                        onClick={startTrainYolo}
-                        disabled={running}
-                        className={`rounded-xl bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 px-5 py-2 text-sm font-semibold text-white ${running ? "opacity-60 cursor-not-allowed" : ""}`}
-                      >
-                        {running ? (
-                          <span className="inline-flex items-center gap-2">
-                            <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
-                            Training...
-                          </span>
-                        ) : (
-                          "Train YOLO →"
-                        )}
-                      </button>
+                      <>
+                        <label className="flex items-center gap-1 text-xs text-zinc-500 uppercase tracking-wide">
+                          Epochs
+                          <select
+                            value={trainEpochs}
+                            onChange={(e) => setTrainEpochs(Number(e.target.value))}
+                            disabled={running}
+                            className="rounded-lg bg-zinc-900 border border-zinc-700 text-xs px-2 py-1 text-zinc-200 disabled:opacity-50"
+                          >
+                            <option value={10}>10</option>
+                            <option value={20}>20</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                          </select>
+                        </label>
+                        <button
+                          onClick={startTrainYolo}
+                          disabled={running}
+                          className={`rounded-xl bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 px-5 py-2 text-sm font-semibold text-white ${running ? "opacity-60 cursor-not-allowed" : ""}`}
+                        >
+                          {running ? (
+                            <span className="inline-flex items-center gap-2">
+                              <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                              Training...
+                            </span>
+                          ) : (
+                            "Train YOLO →"
+                          )}
+                        </button>
+                      </>
                     );
                   })()}
                   <button

@@ -29,6 +29,7 @@ if (hasClerk) {
 const PUBLIC_PATTERNS = [
   "/",
   "/go",
+  "/agents",
   "/chat",
   "/pricing",
   "/extract",
