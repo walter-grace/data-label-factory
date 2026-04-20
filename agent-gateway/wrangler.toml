@@ -31,9 +31,40 @@ id = "02983ae980df4abaa4a4c9ad929f8080"
 name = "LEADERBOARD"
 class_name = "LeaderboardDO"
 
+# Durable Object for the Label Jackpot pool. Contributions happen on every
+# trust-verified label. Payouts are ADMIN-ONLY (no scheduled alarm, no MCP
+# tool) to prevent any agent-driven prompt-injection path to treasury.
+[[durable_objects.bindings]]
+name = "JACKPOT"
+class_name = "JackpotDO"
+
+# Per-key DO that serializes all balance/XP mutations (idFromName(key)).
+# Closes whitehat QA 2026-04-19 race: N parallel /v1/label calls debiting once.
+[[durable_objects.bindings]]
+name = "USER_STATE"
+class_name = "UserStateDO"
+
+# Per-job DO for the labeling marketplace. Serializes submissions against
+# a single job so "first valid submission per image wins" is atomic.
+[[durable_objects.bindings]]
+name = "JOBS"
+class_name = "JobsDO"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["LeaderboardDO"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["JackpotDO"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["UserStateDO"]
+
+[[migrations]]
+tag = "v4"
+new_sqlite_classes = ["JobsDO"]
 
 # Pricing (cents) — override in code if needed.
 # crawl:      1¢/page
