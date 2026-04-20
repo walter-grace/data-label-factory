@@ -55,6 +55,24 @@ const PUBLIC_PATTERNS = [
   "/backend(.*)",
 ];
 
+// Advertise machine-readable surfaces on every HTML response so Cloudflare's
+// Agent Readiness scanner (and MCP clients that probe for `rel="mcp-server"`)
+// can discover our llms.txt, sitemap, and the gateway's MCP manifest without
+// a prior fetch.
+const AGENT_LINK_HEADER = [
+  '</llms.txt>; rel="alternate"; type="text/markdown"',
+  '</sitemap.xml>; rel="sitemap"',
+  '</robots.txt>; rel="alternate"; type="text/plain"',
+  '<https://dlf-gateway.nico-zahniser.workers.dev/.well-known/mcp.json>; rel="mcp-server"',
+  '<https://dlf-gateway.nico-zahniser.workers.dev/v1/pricing>; rel="service-desc"; type="application/json"',
+  '<https://dlf-gateway.nico-zahniser.workers.dev/llms.txt>; rel="api-docs"; type="text/markdown"',
+].join(", ");
+
+function decorateAgentHeaders(res: NextResponse): NextResponse {
+  res.headers.set("Link", AGENT_LINK_HEADER);
+  return res;
+}
+
 function createMiddleware() {
   if (clerkMiddleware && createRouteMatcher) {
     const isPublicRoute = createRouteMatcher(PUBLIC_PATTERNS);
@@ -64,8 +82,8 @@ function createMiddleware() {
       }
     });
   }
-  // No Clerk — pass everything through
-  return (_req: NextRequest) => NextResponse.next();
+  // No Clerk — pass everything through with Agent Readiness headers attached.
+  return (_req: NextRequest) => decorateAgentHeaders(NextResponse.next());
 }
 
 export default createMiddleware();

@@ -1,0 +1,14 @@
+# Data Label Factory — agents welcome.
+# https://data-label-factory.vercel.app
+
+User-agent: *
+Allow: /
+
+Sitemap: https://data-label-factory.vercel.app/sitemap.xml
+
+# Agent-readable machine docs:
+#   https://data-label-factory.vercel.app/llms.txt
+#
+# Pay-per-call vision API + marketplace for AI agents:
+#   https://dlf-gateway.nico-zahniser.workers.dev/llms.txt
+#   https://dlf-gateway.nico-zahniser.workers.dev/.well-known/mcp.json
