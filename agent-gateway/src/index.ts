@@ -1695,7 +1695,29 @@ async function handlePredict(req: Request, env: Env, jobId: string): Promise<Res
     lastStatus = pollData;
     const st = pollData?.status;
     if (st === "COMPLETED") {
-      const sanitized = sanitizeUpstream(pollData.output || {});
+      const rawOut = pollData.output;
+      const sanitized = sanitizeUpstream(rawOut || {});
+      // RunPod occasionally reports COMPLETED with empty/missing output when
+      // the worker exited before writing a result. Refund instead of
+      // returning ok:true with an empty upstream (QA saw n_detections=None).
+      const hasShape =
+        rawOut &&
+        typeof rawOut === "object" &&
+        (typeof rawOut.n_detections === "number" || rawOut.ok === false);
+      if (!hasShape) {
+        return refundAndFail(
+          502,
+          "upstream returned COMPLETED without a detections payload",
+          { run_id: runId, upstream: sanitized },
+        );
+      }
+      if (sanitized?.ok === false) {
+        return refundAndFail(
+          502,
+          sanitized.error || "upstream predict returned ok:false",
+          { run_id: runId, upstream: sanitized },
+        );
+      }
       // Revenue split: credit 70% to published-model owner; record uses + revenue.
       if (pub?.published && ownerKey && !isOwner) {
         const ownerShare = Math.floor(PRICE_MCENTS.predict_per_image * MARKETPLACE_OWNER_SHARE);
@@ -1710,7 +1732,7 @@ async function handlePredict(req: Request, env: Env, jobId: string): Promise<Res
         } catch {}
       }
       return json({
-        ok: sanitized?.ok !== false,
+        ok: true,
         balance_mcents: auth.record.balance_mcents,
         xp: auth.record.xp,
         level: level(auth.record.xp),
