@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { DLF_API, isSelfHostedOnly, selfHostedOnlyResponse } from "@/lib/dlf-api";
 
 /**
  * POST /api/parse — document parsing via the DLF backend (liteparse / chandra).
@@ -14,7 +15,6 @@ import { NextRequest, NextResponse } from "next/server";
  * backend enforces a separate size cap + timeout as a second line of defense.
  */
 
-const DLF_API = process.env.DLF_API_URL || "http://localhost:8400";
 const MAX_MB = Number(process.env.DLF_MAX_PARSE_MB || 50);
 const SUPPORTED = [".pdf", ".docx", ".xlsx", ".pptx", ".png", ".jpg", ".jpeg", ".tiff", ".tif"];
 
@@ -22,6 +22,7 @@ export const runtime = "nodejs";
 export const maxDuration = 120; // 2 min — long enough for OCR, short enough to bail
 
 export async function POST(req: NextRequest) {
+  if (isSelfHostedOnly()) return selfHostedOnlyResponse("Parse documents");
   let form: FormData;
   try {
     form = await req.formData();

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { DLF_API, isSelfHostedOnly, selfHostedOnlyResponse } from "@/lib/dlf-api";
 
 /**
  * POST /api/moltbook/connect
@@ -12,9 +13,8 @@ import { NextRequest, NextResponse } from "next/server";
  * verified molty_name + an api_key_hint (last 4 chars).
  */
 
-const DLF_API = process.env.DLF_API_URL || "http://localhost:8400";
-
 export async function POST(req: NextRequest) {
+  if (isSelfHostedOnly()) return selfHostedOnlyResponse("Moltbook connect");
   let body: any;
   try {
     body = await req.json();

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { DLF_API, isSelfHostedOnly, selfHostedOnlyResponse } from "@/lib/dlf-api";
 
 /**
  * POST /api/render-page — render a document page to PNG via the DLF backend.
@@ -10,12 +11,11 @@ import { NextRequest, NextResponse } from "next/server";
  * background for drawing field boxes.
  */
 
-const DLF_API = process.env.DLF_API_URL || "http://localhost:8400";
-
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
+  if (isSelfHostedOnly()) return selfHostedOnlyResponse("Render page");
   let form: FormData;
   try {
     form = await req.formData();

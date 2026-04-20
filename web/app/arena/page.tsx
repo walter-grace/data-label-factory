@@ -318,11 +318,13 @@ export default function ArenaPage() {
               </span>
             </div>
           </Link>
-          <div className="hidden items-center gap-8 text-sm text-zinc-400 sm:flex">
+          <div className="hidden items-center gap-7 text-sm text-zinc-400 sm:flex">
             <Link href="/" className="transition hover:text-white">Home</Link>
-            <Link href="/play" className="transition hover:text-white">Play</Link>
-            <Link href="/arena" className="text-white">Arena</Link>
-            <Link href="/connect" className="transition hover:text-white">Connect</Link>
+            <Link href="/arena" className="text-white font-medium">Arena</Link>
+            <Link href="/community" className="transition hover:text-white">Community</Link>
+            <Link href="/agents" className="transition hover:text-white">Claim Key</Link>
+            <Link href="/subscribe" className="transition hover:text-white">Subscribe</Link>
+            <Link href="/pricing" className="transition hover:text-white">Pricing</Link>
           </div>
           {running && (
             <div className="flex items-center gap-3 text-sm">
@@ -750,10 +752,12 @@ export default function ArenaPage() {
             <div className="flex h-5 w-5 items-center justify-center rounded bg-blue-600 text-[8px] font-black text-white">DLF</div>
             <span>Data Label Factory</span>
           </div>
-          <div className="flex gap-6">
+          <div className="flex flex-wrap justify-center gap-4 gap-y-2 sm:gap-6">
             <Link href="/" className="transition hover:text-zinc-300">Home</Link>
-            <Link href="/play" className="transition hover:text-zinc-300">Play</Link>
-            <Link href="/connect" className="transition hover:text-zinc-300">Connect</Link>
+            <Link href="/arena" className="transition hover:text-zinc-300">Arena</Link>
+            <Link href="/community" className="transition hover:text-zinc-300">Community</Link>
+            <Link href="/agents" className="transition hover:text-zinc-300">Claim Key</Link>
+            <Link href="/subscribe" className="transition hover:text-zinc-300">Subscribe</Link>
             <Link href="/pricing" className="transition hover:text-zinc-300">Pricing</Link>
           </div>
         </div>

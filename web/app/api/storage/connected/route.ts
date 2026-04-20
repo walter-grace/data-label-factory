@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { DLF_API, isSelfHostedOnly, selfHostedOnlyResponse } from "@/lib/dlf-api";
 
 /**
  * GET /api/storage/connected?user_id=...
@@ -7,9 +8,8 @@ import { NextRequest, NextResponse } from "next/server";
  * Proxies to the DLF backend — never exposes tokens.
  */
 
-const DLF_API = process.env.DLF_API_URL || "http://localhost:8400";
-
 export async function GET(req: NextRequest) {
+  if (isSelfHostedOnly()) return selfHostedOnlyResponse("Cloud storage connections");
   const userId = req.nextUrl.searchParams.get("user_id") || "";
 
   if (!userId) {

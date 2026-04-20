@@ -76,9 +76,15 @@ export default function ParsePage() {
 
     try {
       const res = await fetch("/api/parse", { method: "POST", body: form });
-      const data: ParseResponse = await res.json();
+      const data: ParseResponse & { self_hosted_only?: boolean; install?: string; alternative?: string } = await res.json();
       if (!res.ok) {
-        setError(data.error || `HTTP ${res.status}`);
+        if (data.self_hosted_only) {
+          setError(
+            `Parse runs on a self-hosted Python backend — not available on the public demo. Install locally:\n\n  ${data.install}\n\nOr use /go for browser-based image labeling (no install).`,
+          );
+        } else {
+          setError(data.error || `HTTP ${res.status}`);
+        }
       } else {
         setResult(data);
       }

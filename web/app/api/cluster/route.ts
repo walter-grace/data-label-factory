@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { DLF_API, isSelfHostedOnly, selfHostedOnlyResponse } from "@/lib/dlf-api";
 
 /**
  * POST /api/cluster — proxy to DLF backend `/api/cluster`.
@@ -10,7 +11,6 @@ import { NextRequest, NextResponse } from "next/server";
  * See `data_label_factory/serve.py::cluster_documents`.
  */
 
-const DLF_API = process.env.DLF_API_URL || "http://localhost:8400";
 const MAX_MB = Number(process.env.DLF_MAX_PARSE_MB || 50);
 const MAX_FILES = Number(process.env.DLF_CLUSTER_MAX_FILES || 50);
 const SUPPORTED = [".pdf", ".docx", ".xlsx", ".pptx", ".png", ".jpg", ".jpeg", ".tiff", ".tif"];
@@ -19,6 +19,7 @@ export const runtime = "nodejs";
 export const maxDuration = 300; // 5 min — parsing 50 PDFs sequentially takes a while
 
 export async function POST(req: NextRequest) {
+  if (isSelfHostedOnly()) return selfHostedOnlyResponse("Cluster documents");
   let form: FormData;
   try {
     form = await req.formData();

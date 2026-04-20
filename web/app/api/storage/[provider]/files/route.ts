@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { DLF_API, isSelfHostedOnly, selfHostedOnlyResponse } from "@/lib/dlf-api";
 
 /**
  * /api/storage/[provider]/files
@@ -11,8 +12,6 @@ import { NextRequest, NextResponse } from "next/server";
  *        Returns the file as a blob (streamed from DLF backend)
  */
 
-const DLF_API = process.env.DLF_API_URL || "http://localhost:8400";
-
 type Provider = "gdrive" | "dropbox" | "bitbucket";
 const VALID: Set<string> = new Set(["gdrive", "dropbox", "bitbucket"]);
 
@@ -20,6 +19,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ provider: string }> },
 ) {
+  if (isSelfHostedOnly()) return selfHostedOnlyResponse("Cloud storage files");
   const { provider } = await params;
 
   if (!VALID.has(provider)) {
@@ -55,6 +55,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ provider: string }> },
 ) {
+  if (isSelfHostedOnly()) return selfHostedOnlyResponse("Cloud storage download");
   const { provider } = await params;
 
   if (!VALID.has(provider)) {

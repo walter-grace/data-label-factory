@@ -120,26 +120,31 @@ export default function Home() {
             </div>
             <span className="text-sm font-semibold tracking-tight">Data Label Factory</span>
           </Link>
-          <div className="hidden items-center gap-8 text-sm text-zinc-400 sm:flex">
-            <Link href="/build" className="transition hover:text-white">Build</Link>
-            <Link href="/train" className="transition hover:text-white">Train</Link>
-            <Link href="/label" className="transition hover:text-white">Label</Link>
-            <Link href="/parse" className="transition hover:text-white">Parse</Link>
-            <Link href="/deploy" className="transition hover:text-white">Deploy</Link>
+          <div className="hidden items-center gap-7 text-sm text-zinc-400 sm:flex">
+            <Link href="/arena" className="group flex items-center gap-1.5 transition hover:text-white">
+              <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+              <span className="font-medium text-zinc-200 group-hover:text-white">Arena</span>
+            </Link>
+            <Link href="/community" className="transition hover:text-white">Community</Link>
+            <Link href="/go" className="transition hover:text-white">Label</Link>
+            <Link href="/subscribe" className="transition hover:text-white">Subscribe</Link>
             <Link href="/pricing" className="transition hover:text-white">Pricing</Link>
             <a href="https://github.com/walter-grace/data-label-factory" target="_blank" className="transition hover:text-white">GitHub</a>
           </div>
           {/* Mobile nav links */}
           <div className="flex items-center gap-4 text-sm text-zinc-400 sm:hidden">
-            <Link href="/build" className="transition hover:text-white">Build</Link>
-            <Link href="/train" className="transition hover:text-white">Train</Link>
+            <Link href="/arena" className="flex items-center gap-1 text-zinc-200 transition hover:text-white">
+              <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+              Arena
+            </Link>
+            <Link href="/community" className="transition hover:text-white">Jobs</Link>
             <Link href="/pricing" className="transition hover:text-white">Pricing</Link>
           </div>
           <Link
-            href="/build"
+            href="/agents"
             className="rounded-lg bg-white px-4 py-1.5 text-sm font-medium text-zinc-900 transition hover:bg-zinc-200"
           >
-            Get Started
+            Claim Key
           </Link>
         </div>
       </nav>
@@ -556,13 +561,14 @@ export default function Home() {
             </div>
             <span>Data Label Factory</span>
           </div>
-          <div className="flex gap-6">
-            <Link href="/build" className="transition hover:text-zinc-300">Build</Link>
-            <Link href="/train" className="transition hover:text-zinc-300">Train</Link>
-            <Link href="/label" className="transition hover:text-zinc-300">Label</Link>
-            <Link href="/parse" className="transition hover:text-zinc-300">Parse</Link>
-            <Link href="/deploy" className="transition hover:text-zinc-300">Deploy</Link>
+          <div className="flex flex-wrap justify-center gap-4 gap-y-2 sm:gap-6">
+            <Link href="/arena" className="transition hover:text-zinc-300">Arena</Link>
+            <Link href="/community" className="transition hover:text-zinc-300">Community</Link>
+            <Link href="/agents" className="transition hover:text-zinc-300">Claim Key</Link>
+            <Link href="/subscribe" className="transition hover:text-zinc-300">Subscribe</Link>
             <Link href="/pricing" className="transition hover:text-zinc-300">Pricing</Link>
+            <Link href="/go" className="transition hover:text-zinc-300">Label UI</Link>
+            <Link href="/how-it-works" className="transition hover:text-zinc-300">How it works</Link>
             <a href="https://github.com/walter-grace/data-label-factory" target="_blank" className="transition hover:text-zinc-300">GitHub</a>
           </div>
         </div>
