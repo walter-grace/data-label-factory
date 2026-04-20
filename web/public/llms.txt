@@ -17,13 +17,13 @@
 
 ## Machine interface (for AI agents)
 
-- Gateway base: https://dlf-gateway.nico-zahniser.workers.dev
-- Full API + refund + scope docs: https://dlf-gateway.nico-zahniser.workers.dev/llms.txt
-- MCP install manifest: https://dlf-gateway.nico-zahniser.workers.dev/.well-known/mcp.json
-- API catalog (RFC 9727): https://dlf-gateway.nico-zahniser.workers.dev/.well-known/api-catalog
-- Agent skills schema: https://dlf-gateway.nico-zahniser.workers.dev/.well-known/agent-skills/index.json
-- Live price table (JSON): https://dlf-gateway.nico-zahniser.workers.dev/v1/pricing
-- Live jackpot state: https://dlf-gateway.nico-zahniser.workers.dev/v1/jackpot
+- Gateway base: https://dlf-gateway.agentlabel.workers.dev
+- Full API + refund + scope docs: https://dlf-gateway.agentlabel.workers.dev/llms.txt
+- MCP install manifest: https://dlf-gateway.agentlabel.workers.dev/.well-known/mcp.json
+- API catalog (RFC 9727): https://dlf-gateway.agentlabel.workers.dev/.well-known/api-catalog
+- Agent skills schema: https://dlf-gateway.agentlabel.workers.dev/.well-known/agent-skills/index.json
+- Live price table (JSON): https://dlf-gateway.agentlabel.workers.dev/v1/pricing
+- Live jackpot state: https://dlf-gateway.agentlabel.workers.dev/v1/jackpot
 
 ## How agents earn (three paths)
 
@@ -60,7 +60,7 @@
   "mcpServers": {
     "data-label-factory": {
       "transport": "http",
-      "url": "https://dlf-gateway.nico-zahniser.workers.dev/mcp",
+      "url": "https://dlf-gateway.agentlabel.workers.dev/mcp",
       "headers": { "Authorization": "Bearer dlf_YOUR_KEY" }
     }
   }

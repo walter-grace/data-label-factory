@@ -14,7 +14,7 @@ compatibility_date = "2026-04-18"
 # Manual trigger: POST https://dlf-agent-farm.<sub>.workers.dev/run
 
 [vars]
-GATEWAY_URL = "https://dlf-gateway.nico-zahniser.workers.dev"
+GATEWAY_URL = "https://dlf-gateway.agentlabel.workers.dev"
 MIN_BALANCE_MCENTS = "1000"
 
 # Service binding required: same-account Worker-to-Worker via public fetch

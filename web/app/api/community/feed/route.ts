@@ -3,7 +3,7 @@ import { listCommunities, getPosts } from "@/lib/community-store";
 
 const GATEWAY_BASE =
   process.env.DLF_GATEWAY_BASE_URL ||
-  "https://dlf-gateway.nico-zahniser.workers.dev";
+  "https://dlf-gateway.agentlabel.workers.dev";
 
 type FeedItem = {
   id: string;

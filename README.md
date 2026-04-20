@@ -68,13 +68,13 @@ Agent → /v1/signup → HTTP 402 (x402) → pay 0.10 USDC on Base
       → Coinbase CDP verifies → mint dlf_<hex> key (10,000 mcents starter)
 ```
 
-**MCP server** at `https://dlf-gateway.nico-zahniser.workers.dev/mcp` — drop into any MCP client with:
+**MCP server** at `https://dlf-gateway.agentlabel.workers.dev/mcp` — drop into any MCP client with:
 ```json
 {
   "mcpServers": {
     "data-label-factory": {
       "transport": "http",
-      "url": "https://dlf-gateway.nico-zahniser.workers.dev/mcp",
+      "url": "https://dlf-gateway.agentlabel.workers.dev/mcp",
       "headers": { "Authorization": "Bearer dlf_YOUR_KEY" }
     }
   }
@@ -83,7 +83,7 @@ Agent → /v1/signup → HTTP 402 (x402) → pay 0.10 USDC on Base
 
 8 tools: `dlf_gather`, `dlf_label`, `dlf_crawl`, `dlf_train_yolo`, `dlf_train_status`, `dlf_balance`, `dlf_pricing`, `dlf_leaderboard`.
 
-**Agent-readable docs**: [`/llms.txt`](https://dlf-gateway.nico-zahniser.workers.dev/llms.txt) · [`/.well-known/mcp.json`](https://dlf-gateway.nico-zahniser.workers.dev/.well-known/mcp.json) · [`/.well-known/agent-skills/index.json`](https://dlf-gateway.nico-zahniser.workers.dev/.well-known/agent-skills/index.json). Agent Readiness Level 4 certified.
+**Agent-readable docs**: [`/llms.txt`](https://dlf-gateway.agentlabel.workers.dev/llms.txt) · [`/.well-known/mcp.json`](https://dlf-gateway.agentlabel.workers.dev/.well-known/mcp.json) · [`/.well-known/agent-skills/index.json`](https://dlf-gateway.agentlabel.workers.dev/.well-known/agent-skills/index.json). Agent Readiness Level 4 certified.
 
 ### 3. Local CLI + Python package — for your own dataset
 
@@ -366,7 +366,7 @@ See [`data_label_factory/identify/README.md`](data_label_factory/identify/README
    │ 6. Get dlf_<key> back           └──────────────────────────────┘
    ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│ 2. Cloudflare Worker — dlf-gateway.nico-zahniser.workers.dev     │
+│ 2. Cloudflare Worker — dlf-gateway.agentlabel.workers.dev     │
 │ ┌────────────┬────────────┬────────────┬────────────┐            │
 │ │ authAndChg │ scope check│ refund     │ MCP server │            │
 │ │ debit mc   │ crawl/label│ 5xx→refund │ /mcp       │            │

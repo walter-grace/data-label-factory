@@ -4,7 +4,7 @@ import type { NextConfig } from "next";
 // passes Cloudflare Agent Readiness `discovery.*` checks without
 // duplicating the manifests. Single source of truth lives on the gateway
 // (already Level 4 certified).
-const GATEWAY = "https://dlf-gateway.nico-zahniser.workers.dev";
+const GATEWAY = "https://dlf-gateway.agentlabel.workers.dev";
 
 const nextConfig: NextConfig = {
   async rewrites() {

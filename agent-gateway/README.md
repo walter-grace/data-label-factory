@@ -185,7 +185,7 @@ exclusive.
 
 ## Status
 
-- Live gateway: `https://dlf-gateway.nico-zahniser.workers.dev`
+- Live gateway: `https://dlf-gateway.agentlabel.workers.dev`
 - Used in production by [Data Label Factory](https://data-label-factory.vercel.app). The site's `/agents` page renders this gateway's leaderboard + activity feed live.
 - Tested with 3 OpenRouter-Gemma agents running concurrent labeling pipelines; confirmed the 402 budget gate works; Durable Object leaderboard verified race-free under concurrent writes.
 

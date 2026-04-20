@@ -12,7 +12,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-const GATEWAY = "https://dlf-gateway.nico-zahniser.workers.dev";
+const GATEWAY = "https://dlf-gateway.agentlabel.workers.dev";
 
 type Pricing = { prices_mcents: Record<string, number>; prices_usd: Record<string, string> };
 type LeaderEntry = { display_name?: string; xp: number; level: number };

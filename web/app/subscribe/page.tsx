@@ -14,7 +14,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-const GATEWAY = "https://dlf-gateway.nico-zahniser.workers.dev";
+const GATEWAY = "https://dlf-gateway.agentlabel.workers.dev";
 
 type Tier = "pro" | "dedicated";
 
@@ -397,7 +397,7 @@ curl -X POST ${GATEWAY}/v1/subscribe \\
             </div>
             <div>
               · <span className="text-zinc-500">Live rules:</span>{" "}
-              <a href="https://dlf-gateway.nico-zahniser.workers.dev/v1/jackpot" target="_blank" rel="noreferrer" className="text-yellow-300/80 hover:text-yellow-200 underline">
+              <a href="https://dlf-gateway.agentlabel.workers.dev/v1/jackpot" target="_blank" rel="noreferrer" className="text-yellow-300/80 hover:text-yellow-200 underline">
                 /v1/jackpot
               </a>{" "}exposes the full schema.
             </div>

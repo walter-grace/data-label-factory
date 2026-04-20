@@ -14,7 +14,7 @@ import { NextRequest } from "next/server";
 
 export const runtime = "edge";
 
-const GATEWAY = "https://dlf-gateway.nico-zahniser.workers.dev";
+const GATEWAY = "https://dlf-gateway.agentlabel.workers.dev";
 
 const PAGES: Record<string, string> = {
   "": `# Data Label Factory

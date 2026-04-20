@@ -10,7 +10,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-const GATEWAY = "https://dlf-gateway.nico-zahniser.workers.dev";
+const GATEWAY = "https://dlf-gateway.agentlabel.workers.dev";
 
 type JackpotState = {
   pool_usd: string;

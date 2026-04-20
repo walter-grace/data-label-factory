@@ -8,7 +8,7 @@ compatibility_flags = ["nodejs_compat"]
 # Deploy alongside the classic farm; retire the classic one once validated.
 
 [vars]
-GATEWAY_URL = "https://dlf-gateway.nico-zahniser.workers.dev"
+GATEWAY_URL = "https://dlf-gateway.agentlabel.workers.dev"
 MIN_BALANCE_MCENTS = "1000"
 
 # Service binding to the gateway Worker (same account → must use binding, not

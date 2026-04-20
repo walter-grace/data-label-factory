@@ -19,7 +19,7 @@ import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-const GATEWAY = "https://dlf-gateway.nico-zahniser.workers.dev";
+const GATEWAY = "https://dlf-gateway.agentlabel.workers.dev";
 
 // Mirror the gateway constants. Keep in sync with ECONOMIC_MODEL.md.
 const REWARD_PER_IMAGE_MCENTS = 100;

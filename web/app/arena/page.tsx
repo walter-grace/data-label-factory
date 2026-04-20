@@ -129,7 +129,7 @@ type JackpotState = {
   last_payout: JackpotLastPayout | null;
 };
 
-const GATEWAY = "https://dlf-gateway.nico-zahniser.workers.dev";
+const GATEWAY = "https://dlf-gateway.agentlabel.workers.dev";
 
 export default function ArenaPage() {
   const [agents, setAgents] = useState<AgentEntry[]>(DEMO_AGENTS);

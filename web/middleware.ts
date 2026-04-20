@@ -63,9 +63,9 @@ const AGENT_LINK_HEADER = [
   '</llms.txt>; rel="alternate"; type="text/markdown"',
   '</sitemap.xml>; rel="sitemap"',
   '</robots.txt>; rel="alternate"; type="text/plain"',
-  '<https://dlf-gateway.nico-zahniser.workers.dev/.well-known/mcp.json>; rel="mcp-server"',
-  '<https://dlf-gateway.nico-zahniser.workers.dev/v1/pricing>; rel="service-desc"; type="application/json"',
-  '<https://dlf-gateway.nico-zahniser.workers.dev/llms.txt>; rel="api-docs"; type="text/markdown"',
+  '<https://dlf-gateway.agentlabel.workers.dev/.well-known/mcp.json>; rel="mcp-server"',
+  '<https://dlf-gateway.agentlabel.workers.dev/v1/pricing>; rel="service-desc"; type="application/json"',
+  '<https://dlf-gateway.agentlabel.workers.dev/llms.txt>; rel="api-docs"; type="text/markdown"',
 ].join(", ");
 
 function decorateAgentHeaders(res: NextResponse): NextResponse {

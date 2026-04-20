@@ -10,8 +10,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
-const GATEWAY = "https://dlf-gateway.nico-zahniser.workers.dev";
-const FARM_THINK = "https://dlf-agent-farm-think.nico-zahniser.workers.dev";
+const GATEWAY = "https://dlf-gateway.agentlabel.workers.dev";
+const FARM_THINK = "https://dlf-agent-farm-think.agentlabel.workers.dev";
 const POLL_MS = 8000;
 
 function WakeAgentButton({ name, onWake }: { name: "scout" | "specialist" | "explorer"; onWake: () => void }) {

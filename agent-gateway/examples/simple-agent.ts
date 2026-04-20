@@ -18,7 +18,7 @@
 import fs from "fs";
 import { setTimeout as sleep } from "timers/promises";
 
-const GATEWAY = process.env.DLF_GATEWAY || "https://dlf-gateway.nico-zahniser.workers.dev";
+const GATEWAY = process.env.DLF_GATEWAY || "https://dlf-gateway.agentlabel.workers.dev";
 const KEY = process.env.DLF_KEY;
 const QUERY = process.argv[2] || "fire hydrants";
 const EPOCHS = Number(process.env.EPOCHS || 10);

@@ -11,7 +11,7 @@ import { useEffect } from "react";
 // Spec: https://webmachinelearning.github.io/webmcp/
 // Validate: https://isitagentready.com → discovery.webMcp should pass.
 
-const GATEWAY = "https://dlf-gateway.nico-zahniser.workers.dev";
+const GATEWAY = "https://dlf-gateway.agentlabel.workers.dev";
 
 type RegisterToolArgs = {
   name: string;

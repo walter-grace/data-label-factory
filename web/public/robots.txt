@@ -13,5 +13,5 @@ Sitemap: https://data-label-factory.vercel.app/sitemap.xml
 #   https://data-label-factory.vercel.app/.well-known/a2a-agent-card.json
 #
 # Pay-per-call vision API + marketplace for AI agents:
-#   https://dlf-gateway.nico-zahniser.workers.dev/llms.txt
-#   https://dlf-gateway.nico-zahniser.workers.dev/.well-known/mcp.json
+#   https://dlf-gateway.agentlabel.workers.dev/llms.txt
+#   https://dlf-gateway.agentlabel.workers.dev/.well-known/mcp.json

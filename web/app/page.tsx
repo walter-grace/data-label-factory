@@ -79,7 +79,7 @@ export default function Home() {
 
   useEffect(() => {
     const load = () => {
-      fetch("https://dlf-gateway.nico-zahniser.workers.dev/v1/jackpot", { cache: "no-store" })
+      fetch("https://dlf-gateway.agentlabel.workers.dev/v1/jackpot", { cache: "no-store" })
         .then((r) => r.json())
         .then((d) => setJackpot({
           pool_usd: d.pool_usd || "0.00",

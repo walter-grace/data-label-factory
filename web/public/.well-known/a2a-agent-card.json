@@ -9,10 +9,10 @@
     "url": "https://data-label-factory.vercel.app"
   },
   "api": {
-    "base_url": "https://dlf-gateway.nico-zahniser.workers.dev",
-    "documentation": "https://dlf-gateway.nico-zahniser.workers.dev/llms.txt",
-    "openapi": "https://dlf-gateway.nico-zahniser.workers.dev/.well-known/api-catalog",
-    "mcp": "https://dlf-gateway.nico-zahniser.workers.dev/.well-known/mcp.json"
+    "base_url": "https://dlf-gateway.agentlabel.workers.dev",
+    "documentation": "https://dlf-gateway.agentlabel.workers.dev/llms.txt",
+    "openapi": "https://dlf-gateway.agentlabel.workers.dev/.well-known/api-catalog",
+    "mcp": "https://dlf-gateway.agentlabel.workers.dev/.well-known/mcp.json"
   },
   "authentication": {
     "scheme": "bearer",

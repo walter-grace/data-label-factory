@@ -522,11 +522,11 @@ async function handleRootLanding(req: Request): Promise<Response> {
     return Response.json({
       service: "data-label-factory",
       description: "Pay-per-call vision labeling + YOLO training API for agents",
-      docs: "https://dlf-gateway.nico-zahniser.workers.dev/llms.txt",
-      health: "https://dlf-gateway.nico-zahniser.workers.dev/v1/health",
-      pricing: "https://dlf-gateway.nico-zahniser.workers.dev/v1/pricing",
-      mcp: "https://dlf-gateway.nico-zahniser.workers.dev/.well-known/mcp.json",
-      signup: "https://dlf-gateway.nico-zahniser.workers.dev/v1/signup",
+      docs: "https://dlf-gateway.agentlabel.workers.dev/llms.txt",
+      health: "https://dlf-gateway.agentlabel.workers.dev/v1/health",
+      pricing: "https://dlf-gateway.agentlabel.workers.dev/v1/pricing",
+      mcp: "https://dlf-gateway.agentlabel.workers.dev/.well-known/mcp.json",
+      signup: "https://dlf-gateway.agentlabel.workers.dev/v1/signup",
     }, { headers: { "access-control-allow-origin": "*" } });
   }
   // Default: HTML landing page.
@@ -587,7 +587,7 @@ async function handleSitemap(): Promise<Response> {
     "/.well-known/agent-skills/index.json",
     "/v1/health", "/v1/pricing", "/v1/leaderboard", "/v1/activity",
   ];
-  const base = "https://dlf-gateway.nico-zahniser.workers.dev";
+  const base = "https://dlf-gateway.agentlabel.workers.dev";
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map((u) => `  <url><loc>${base}${u}</loc></url>`).join("\n")}
@@ -617,7 +617,7 @@ async function handleRobots(): Promise<Response> {
       "Allow: /",
       "Content-Signal: search=yes, ai-input=yes, ai-train=yes",
       "",
-      "Sitemap: https://dlf-gateway.nico-zahniser.workers.dev/sitemap.xml",
+      "Sitemap: https://dlf-gateway.agentlabel.workers.dev/sitemap.xml",
     ].join("\n"),
   );
 }
@@ -630,11 +630,11 @@ async function handleLlmsTxt(): Promise<Response> {
       "> Pay-per-call HTTP API for AI agents to gather images, label with Gemma vision models, and train YOLO object detectors on demand. x402 pay-to-mint key endpoint at /v1/signup.",
       "",
       "## Public endpoints",
-      "- [Health](https://dlf-gateway.nico-zahniser.workers.dev/v1/health): liveness probe",
-      "- [Pricing](https://dlf-gateway.nico-zahniser.workers.dev/v1/pricing): current per-call pricing in mcents (1/1000¢)",
-      "- [Leaderboard](https://dlf-gateway.nico-zahniser.workers.dev/v1/leaderboard): top agents by XP",
-      "- [Activity feed](https://dlf-gateway.nico-zahniser.workers.dev/v1/activity?limit=20): recent agent calls",
-      "- [Signup (x402)](https://dlf-gateway.nico-zahniser.workers.dev/v1/signup): POST to get payment quote; retry with X-PAYMENT for key",
+      "- [Health](https://dlf-gateway.agentlabel.workers.dev/v1/health): liveness probe",
+      "- [Pricing](https://dlf-gateway.agentlabel.workers.dev/v1/pricing): current per-call pricing in mcents (1/1000¢)",
+      "- [Leaderboard](https://dlf-gateway.agentlabel.workers.dev/v1/leaderboard): top agents by XP",
+      "- [Activity feed](https://dlf-gateway.agentlabel.workers.dev/v1/activity?limit=20): recent agent calls",
+      "- [Signup (x402)](https://dlf-gateway.agentlabel.workers.dev/v1/signup): POST to get payment quote; retry with X-PAYMENT for key",
       "",
       "## Authenticated endpoints",
       "Use `Authorization: Bearer dlf_<hex>` on every call.",
@@ -693,24 +693,24 @@ async function handleApiCatalog(): Promise<Response> {
   return Response.json({
     linkset: [
       {
-        anchor: "https://dlf-gateway.nico-zahniser.workers.dev/",
+        anchor: "https://dlf-gateway.agentlabel.workers.dev/",
         "service-desc": [
           {
-            href: "https://dlf-gateway.nico-zahniser.workers.dev/v1/pricing",
+            href: "https://dlf-gateway.agentlabel.workers.dev/v1/pricing",
             type: "application/json",
             title: "Pricing — machine-readable",
           },
         ],
         "service-doc": [
           {
-            href: "https://dlf-gateway.nico-zahniser.workers.dev/llms.txt",
+            href: "https://dlf-gateway.agentlabel.workers.dev/llms.txt",
             type: "text/markdown",
             title: "LLM-friendly documentation",
           },
         ],
         "status-desc": [
           {
-            href: "https://dlf-gateway.nico-zahniser.workers.dev/v1/health",
+            href: "https://dlf-gateway.agentlabel.workers.dev/v1/health",
             type: "application/json",
           },
         ],
@@ -729,7 +729,7 @@ async function handleMcpManifest(): Promise<Response> {
     version: "0.2.0",
     homepage: "https://data-label-factory.vercel.app",
     transports: [
-      { type: "http", endpoint: "https://dlf-gateway.nico-zahniser.workers.dev/mcp", protocolVersion: "2025-03-26" },
+      { type: "http", endpoint: "https://dlf-gateway.agentlabel.workers.dev/mcp", protocolVersion: "2025-03-26" },
     ],
     authentication: {
       scheme: "bearer",
@@ -739,7 +739,7 @@ async function handleMcpManifest(): Promise<Response> {
     pricing: {
       model: "pay-per-call",
       currency: "usd-mcents",
-      endpoint: "https://dlf-gateway.nico-zahniser.workers.dev/v1/pricing",
+      endpoint: "https://dlf-gateway.agentlabel.workers.dev/v1/pricing",
     },
     install: {
       claude_desktop: {
@@ -747,7 +747,7 @@ async function handleMcpManifest(): Promise<Response> {
           mcpServers: {
             "data-label-factory": {
               transport: "http",
-              url: "https://dlf-gateway.nico-zahniser.workers.dev/mcp",
+              url: "https://dlf-gateway.agentlabel.workers.dev/mcp",
               headers: { Authorization: "Bearer dlf_YOUR_KEY" },
             },
           },
@@ -784,7 +784,7 @@ async function handleAgentSkills(): Promise<Response> {
         cost_mcents: PRICE_MCENTS.gather,
         cost_usd: mcToUsd(PRICE_MCENTS.gather),
         input_schema: { query: "string", max_images: "integer (1-20)" },
-        endpoint: "POST https://dlf-gateway.nico-zahniser.workers.dev/v1/gather",
+        endpoint: "POST https://dlf-gateway.agentlabel.workers.dev/v1/gather",
       },
       {
         id: "dlf.label",
@@ -793,7 +793,7 @@ async function handleAgentSkills(): Promise<Response> {
         cost_mcents: PRICE_MCENTS.label_per_image,
         cost_usd: mcToUsd(PRICE_MCENTS.label_per_image),
         input_schema: { path: "url", queries: "string", backend: "openrouter|falcon|auto" },
-        endpoint: "POST https://dlf-gateway.nico-zahniser.workers.dev/v1/label",
+        endpoint: "POST https://dlf-gateway.agentlabel.workers.dev/v1/label",
       },
       {
         id: "dlf.train_yolo",
@@ -802,7 +802,7 @@ async function handleAgentSkills(): Promise<Response> {
         cost_mcents: PRICE_MCENTS.train_yolo,
         cost_usd: mcToUsd(PRICE_MCENTS.train_yolo),
         input_schema: { query: "string", epochs: "integer", images: "array" },
-        endpoint: "POST https://dlf-gateway.nico-zahniser.workers.dev/v1/train-yolo/start",
+        endpoint: "POST https://dlf-gateway.agentlabel.workers.dev/v1/train-yolo/start",
       },
       {
         id: "dlf.predict",
@@ -811,7 +811,7 @@ async function handleAgentSkills(): Promise<Response> {
         cost_mcents: PRICE_MCENTS.predict_per_image,
         cost_usd: mcToUsd(PRICE_MCENTS.predict_per_image),
         input_schema: { image_url: "url" },
-        endpoint: "POST https://dlf-gateway.nico-zahniser.workers.dev/v1/predict/:job_id",
+        endpoint: "POST https://dlf-gateway.agentlabel.workers.dev/v1/predict/:job_id",
       },
       {
         id: "dlf.crawl",
@@ -820,7 +820,7 @@ async function handleAgentSkills(): Promise<Response> {
         cost_mcents: PRICE_MCENTS.crawl_per_page,
         cost_usd: mcToUsd(PRICE_MCENTS.crawl_per_page),
         input_schema: { url: "url", limit: "integer", formats: "array" },
-        endpoint: "POST https://dlf-gateway.nico-zahniser.workers.dev/v1/crawl",
+        endpoint: "POST https://dlf-gateway.agentlabel.workers.dev/v1/crawl",
       },
     ],
   }, {
@@ -923,7 +923,7 @@ async function handleLeaderboard(env: Env): Promise<Response> {
 //     "mcpServers": {
 //       "dlf": {
 //         "transport": "http",
-//         "url": "https://dlf-gateway.nico-zahniser.workers.dev/mcp",
+//         "url": "https://dlf-gateway.agentlabel.workers.dev/mcp",
 //         "headers": { "Authorization": "Bearer dlf_..." }
 //       }
 //     }
