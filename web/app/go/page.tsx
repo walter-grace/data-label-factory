@@ -756,11 +756,20 @@ export default function GoPage() {
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar */}
-        <div className="border-b border-zinc-800 px-6 py-3 flex items-center justify-between">
-          <Link href="/" className="text-lg font-bold tracking-tight">
-            Data Label Factory
+        <div className="border-b border-zinc-800 px-8 py-4 flex items-center justify-between gap-6">
+          <Link
+            href="/"
+            className="flex items-center gap-2 text-zinc-300 hover:text-white transition"
+            aria-label="Data Label Factory — home"
+          >
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-blue-600 text-white text-xs font-bold tracking-tight">
+              DLF
+            </span>
+            <span className="hidden md:inline text-sm font-medium tracking-tight">
+              Data Label Factory
+            </span>
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <StageIndicator stage={stage} />
             {/* Backend badge — shows what's labeling, click to switch */}
             <div className="flex rounded-lg border border-zinc-700 overflow-hidden text-[11px]">
@@ -800,31 +809,47 @@ export default function GoPage() {
         <div className="flex-1 overflow-auto p-6">
           {/* STAGE: Drop */}
           {stage === "drop" && (
-            <div className="max-w-2xl mx-auto pt-12">
-              <div className="text-center mb-8">
-                <h1 className="text-4xl font-bold tracking-tight">
+            <div className="max-w-3xl mx-auto pt-8 sm:pt-12">
+              <div className="text-center mb-10">
+                <h1 className="text-5xl sm:text-6xl font-bold tracking-tight leading-[1.05]">
                   Drop your data.
                   <br />
                   <span className="text-zinc-400">We handle the rest.</span>
                 </h1>
-                <p className="mt-3 text-zinc-500">
+                <p className="mt-5 text-base text-zinc-400 max-w-xl mx-auto">
                   Bring your own files — or just describe what to detect and we&apos;ll find images for you.
                 </p>
               </div>
 
-              {/* Two paths side by side */}
-              <div className="grid gap-4 sm:grid-cols-2">
+              {/* Two paths side by side — equal visual weight */}
+              <div className="grid gap-6 sm:grid-cols-2 items-stretch">
                 {/* Path 1: Drop files */}
                 <div
                   onDrop={handleDrop}
                   onDragOver={(e) => e.preventDefault()}
                   onClick={() => document.getElementById("go-input")?.click()}
-                  className="rounded-2xl border-2 border-dashed border-zinc-700 hover:border-blue-500 bg-zinc-900/30 hover:bg-zinc-900/60 p-10 text-center cursor-pointer transition"
+                  className="group flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-zinc-700 hover:border-blue-500 bg-zinc-900/30 hover:bg-zinc-900/60 p-10 text-center cursor-pointer transition min-h-[280px]"
                 >
-                  <div className="text-3xl mb-3 opacity-30">+</div>
-                  <div className="text-base font-medium">Drop files</div>
+                  <svg
+                    className="h-12 w-12 text-zinc-600 group-hover:text-blue-400 transition mb-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  <div className="text-base font-semibold text-zinc-100">Drop files</div>
                   <div className="text-xs text-zinc-500 mt-2">
                     PDF, DOCX, XLSX, images
+                  </div>
+                  <div className="text-[11px] text-zinc-600 mt-3 uppercase tracking-wider">
+                    or click to browse
                   </div>
                   <input
                     id="go-input"
@@ -837,43 +862,41 @@ export default function GoPage() {
                 </div>
 
                 {/* Path 2: Describe + search */}
-                <div className="rounded-2xl border border-zinc-700 bg-zinc-900/30 p-6">
-                  <div className="text-base font-medium mb-2">Or describe what to detect</div>
-                  <div className="text-xs text-zinc-500 mb-4">
+                <div className="flex flex-col rounded-2xl border border-zinc-700 bg-zinc-900/30 p-8 min-h-[280px]">
+                  <div className="text-base font-semibold text-zinc-100 mb-2">Or describe what to detect</div>
+                  <div className="text-xs text-zinc-500 mb-5">
                     We&apos;ll search DuckDuckGo for images and run the full pipeline.
                   </div>
                   <form
                     onSubmit={(e) => { e.preventDefault(); searchAndGather(); }}
-                    className="space-y-3"
+                    className="flex flex-col gap-3 mt-auto"
                   >
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder='e.g. "fire hydrants in cities"'
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder='e.g. "fire hydrants in cities"'
+                      disabled={searching}
+                      className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none disabled:opacity-50"
+                    />
+                    <label className="flex items-center justify-between gap-2 text-xs text-zinc-500 uppercase tracking-wide">
+                      <span>Images to gather</span>
+                      <select
+                        value={imageCount}
+                        onChange={(e) => setImageCount(Number(e.target.value))}
                         disabled={searching}
-                        className="flex-1 rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none disabled:opacity-50"
-                      />
-                      <label className="flex items-center gap-1 text-xs text-zinc-500 uppercase tracking-wide">
-                        Images
-                        <select
-                          value={imageCount}
-                          onChange={(e) => setImageCount(Number(e.target.value))}
-                          disabled={searching}
-                          className="rounded-lg bg-zinc-900 border border-zinc-700 text-sm px-2 py-1 text-zinc-200 disabled:opacity-50"
-                        >
-                          <option value={15}>15</option>
-                          <option value={30}>30</option>
-                          <option value={50}>50</option>
-                          <option value={100}>100</option>
-                        </select>
-                      </label>
-                    </div>
+                        className="rounded-lg bg-zinc-900 border border-zinc-700 text-sm px-3 py-1.5 text-zinc-200 disabled:opacity-50"
+                      >
+                        <option value={15}>15</option>
+                        <option value={30}>30</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                      </select>
+                    </label>
                     <button
                       type="submit"
                       disabled={searching || !searchQuery.trim()}
-                      className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
+                      className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-3 text-sm font-semibold disabled:opacity-40 transition"
                     >
                       {searching ? "Searching..." : "Search & Label →"}
                     </button>

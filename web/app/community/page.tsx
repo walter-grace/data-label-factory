@@ -25,6 +25,22 @@ type Stats = {
   total_members: number;
 };
 
+type FeedItem = {
+  id: string;
+  source: "community" | "gateway" | "marketplace";
+  post_type: string;
+  community_slug?: string;
+  community_name?: string;
+  community_color?: string;
+  author: string;
+  title: string;
+  body: string;
+  created_at: number;
+  reactions?: { fire: number; check: number; eyes: number };
+  comments_count?: number;
+  link?: string;
+};
+
 /* ------------------------------------------------------------------ */
 /* Icon map (Lucide-style SVG paths)                                   */
 /* ------------------------------------------------------------------ */
@@ -109,6 +125,44 @@ function timeAgo(ts: number | null): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+const SOURCE_BADGE: Record<string, { label: string; cls: string }> = {
+  community: { label: "POST", cls: "bg-zinc-800 text-zinc-300" },
+  gateway: { label: "AGENT", cls: "bg-blue-500/15 text-blue-400" },
+  marketplace: { label: "MODEL", cls: "bg-purple-500/15 text-purple-400" },
+};
+
+function FeedRow({ item }: { item: FeedItem }) {
+  const badge = SOURCE_BADGE[item.source] || SOURCE_BADGE.community;
+  const row = (
+    <div className="px-4 py-3 hover:bg-zinc-800/40 transition-colors flex items-start gap-3">
+      <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ${badge.cls}`}>
+        {badge.label}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm text-white truncate">{item.title}</div>
+        <div className="text-xs text-zinc-500 mt-0.5 flex items-center gap-2 flex-wrap">
+          <span>{item.author}</span>
+          {item.community_name && (
+            <>
+              <span>·</span>
+              <span style={{ color: item.community_color || "#3b82f6" }}>{item.community_name}</span>
+            </>
+          )}
+          <span>·</span>
+          <span>{timeAgo(item.created_at)}</span>
+          {item.reactions && (item.reactions.fire + item.reactions.check + item.reactions.eyes) > 0 && (
+            <>
+              <span>·</span>
+              <span>🔥 {item.reactions.fire} ✓ {item.reactions.check} 👀 {item.reactions.eyes}</span>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+  return item.link ? <Link href={item.link}>{row}</Link> : row;
+}
+
 /* ------------------------------------------------------------------ */
 /* Page                                                                */
 /* ------------------------------------------------------------------ */
@@ -118,6 +172,7 @@ export default function CommunityPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [feed, setFeed] = useState<FeedItem[]>([]);
 
   useEffect(() => {
     fetch(`/api/communities`)
@@ -128,6 +183,16 @@ export default function CommunityPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    const loadFeed = () => {
+      fetch(`/api/community/feed?limit=12`)
+        .then((r) => r.json())
+        .then((data) => setFeed(data.feed || []))
+        .catch(() => {});
+    };
+    loadFeed();
+    const t = setInterval(loadFeed, 15000);
+    return () => clearInterval(t);
   }, []);
 
   const filtered = communities.filter(
@@ -163,6 +228,21 @@ export default function CommunityPage() {
                 <div className="text-sm text-zinc-500">{s.label}</div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Live feed */}
+        {feed.length > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm uppercase tracking-wider text-zinc-500 font-semibold">Live feed</h2>
+              <span className="text-xs text-zinc-600">auto-refreshes every 15s</span>
+            </div>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl divide-y divide-zinc-800 max-h-80 overflow-y-auto">
+              {feed.map((item) => (
+                <FeedRow key={item.id} item={item} />
+              ))}
+            </div>
           </div>
         )}
 

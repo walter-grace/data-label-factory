@@ -57,15 +57,126 @@ const DEMO_AGENTS: AgentEntry[] = [
 const TARGETS = ["stop sign", "car", "dog", "cat", "bird", "fire hydrant", "bicycle", "person", "laptop", "bottle"];
 const STREAK_TITLES = ["", "", "", "FIRE!", "", "ON FIRE!!", "", "", "", "", "UNSTOPPABLE!", "", "", "", "", "", "", "", "", "", "GODLIKE!!!"];
 
+/** Format ms as "6d 14h 22m" / "3h 11m" / "42s" — coarsest two units. */
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return "ready";
+  const s = Math.floor(ms / 1000);
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (d > 0) return `${d}d ${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
+}
+
+function tierBadge(tier?: string) {
+  const t = (tier || "free").toLowerCase();
+  if (t === "dedicated") return { label: "DEDICATED", cls: "text-amber-300 bg-amber-500/15 border-amber-500/40" };
+  if (t === "pro") return { label: "PRO", cls: "text-fuchsia-300 bg-fuchsia-500/15 border-fuchsia-500/40" };
+  if (t === "enterprise") return { label: "ENT", cls: "text-violet-300 bg-violet-500/15 border-violet-500/40" };
+  return { label: "FREE", cls: "text-zinc-400 bg-zinc-700/30 border-zinc-600/40" };
+}
+
+function formatSince(ms: number): string {
+  if (!ms) return "never";
+  const s = Math.floor((Date.now() - ms) / 1000);
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
 /* ------------------------------------------------------------------ */
 /* Component                                                           */
 /* ------------------------------------------------------------------ */
+
+type JackpotTopLabeler = {
+  key_short: string;
+  display_name: string;
+  label_count: number;
+  tier?: string;
+};
+type JackpotPayoutWinner = {
+  key_short: string;
+  display_name: string;
+  share_mcents: number;
+  label_count: number;
+  bucket?: "main" | "sub";
+  tier?: string;
+};
+type JackpotLastPayout = {
+  at: number;
+  pool_mcents: number;
+  main_pool_mcents?: number;
+  sub_pool_mcents?: number;
+  winners: JackpotPayoutWinner[];
+};
+type JackpotState = {
+  pool_mcents: number;
+  pool_usd: string;
+  contributors: number;
+  period_start: number;
+  top_labelers: JackpotTopLabeler[];
+  sub_pool_fraction: number;
+  sub_pool_split_pct: number[];
+  payout_split_pct: number[];
+  weight_cap_per_period: number;
+  rank_weight_by_tier: Record<string, number>;
+  payout_cooldown_days: number;
+  cooldown_ms_remaining: number;
+  last_payout: JackpotLastPayout | null;
+};
+
+const GATEWAY = "https://dlf-gateway.nico-zahniser.workers.dev";
 
 export default function ArenaPage() {
   const [agents, setAgents] = useState<AgentEntry[]>(DEMO_AGENTS);
   const [feed, setFeed] = useState<FeedEvent[]>([]);
   const [running, setRunning] = useState(false);
   const [totalLabels, setTotalLabels] = useState(0);
+  const [jackpot, setJackpot] = useState<JackpotState | null>(null);
+  const [payoutEtaAt, setPayoutEtaAt] = useState<number | null>(null);
+  // Tick state so the countdown updates every second between server refreshes.
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    const load = () => {
+      fetch(`${GATEWAY}/v1/jackpot`, { cache: "no-store" })
+        .then((r) => r.json())
+        .then((d) => {
+          setPayoutEtaAt(
+            typeof d.cooldown_ms_remaining === "number"
+              ? Date.now() + d.cooldown_ms_remaining
+              : null,
+          );
+          setJackpot({
+          pool_mcents: d.pool_mcents || 0,
+          pool_usd: d.pool_usd || "0.00",
+          contributors: d.contributors || 0,
+          period_start: d.period_start || 0,
+          top_labelers: d.top_labelers || [],
+          sub_pool_fraction: d.sub_pool_fraction ?? 0.1,
+          sub_pool_split_pct: d.sub_pool_split_pct || [60, 40],
+          payout_split_pct: d.payout_split_pct || [50, 30, 20],
+          weight_cap_per_period: d.weight_cap_per_period || 2000,
+          rank_weight_by_tier: d.rank_weight_by_tier || { free: 1, pro: 1.5, dedicated: 2 },
+          payout_cooldown_days: d.payout_cooldown_days || 7,
+          cooldown_ms_remaining: d.cooldown_ms_remaining || 0,
+          last_payout: d.last_payout || null,
+          });
+        })
+        .catch(() => {});
+    };
+    load();
+    const t = setInterval(load, 10000);
+    return () => clearInterval(t);
+  }, []);
   const [scoreHistory, setScoreHistory] = useState<Array<{ tick: number; [agentId: string]: number }>>([]);
   const tickCount = useRef(0);
   const [showCombo, setShowCombo] = useState<{ name: string; streak: number; title: string } | null>(null);
@@ -189,9 +300,23 @@ export default function ArenaPage() {
       {/* Nav */}
       <nav className="fixed top-0 z-50 w-full border-b border-white/5 bg-zinc-950/80 backdrop-blur-xl">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-xs font-black">DLF</div>
-            <span className="text-sm font-semibold tracking-tight">Agent Arena</span>
+          <Link href="/" className="group flex items-center gap-2.5">
+            {/* DLF badge — layered glow ring pulses to signal live play */}
+            <div className="relative flex h-8 w-8 items-center justify-center">
+              <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-yellow-400 via-amber-500 to-fuchsia-500 blur-sm opacity-70 animate-[jackpotPulse_2.2s_ease-in-out_infinite]" />
+              <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-950 text-[11px] font-black tracking-tight text-white border border-yellow-400/40 group-hover:border-yellow-300 transition">
+                DLF
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-sm font-black tracking-tight uppercase bg-gradient-to-r from-yellow-300 via-amber-400 to-fuchsia-400 bg-clip-text text-transparent">
+                Agent Arena
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/15 border border-rose-400/40 px-1.5 py-0 text-[9px] font-bold uppercase tracking-widest text-rose-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-rose-400 animate-pulse" />
+                Live
+              </span>
+            </div>
           </Link>
           <div className="hidden items-center gap-8 text-sm text-zinc-400 sm:flex">
             <Link href="/" className="transition hover:text-white">Home</Link>
@@ -239,23 +364,195 @@ export default function ArenaPage() {
           </div>
         </div>
 
-        {/* Jackpot + Money meters */}
-        {running && (
-          <div className="border-b border-zinc-800/50">
-            <div className="mx-auto max-w-5xl px-6 py-4">
-              {/* Mega Jackpot */}
-              <div className="text-center mb-4">
-                <div className="inline-flex flex-col items-center rounded-2xl border border-yellow-500/30 bg-gradient-to-b from-yellow-950/30 to-zinc-900/50 px-10 py-4">
-                  <div className="text-[10px] uppercase tracking-[0.3em] text-yellow-500/60 font-bold mb-1">Mega Jackpot</div>
-                  <div className="text-4xl sm:text-5xl font-black tabular-nums bg-gradient-to-r from-yellow-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent animate-[jackpotPulse_2s_ease-in-out_infinite]">
-                    ${(totalLabels * 0.12).toFixed(2)}
+        {/* Mega Jackpot — live pool from dlf-gateway. Always visible (not
+            gated on the local demo arena running state) because the real
+            pool is the main event. */}
+        <div className="border-b border-zinc-800/50">
+          <div className="mx-auto max-w-6xl px-6 py-6">
+            <div className="text-center mb-4">
+              <div className="inline-flex flex-col items-center rounded-2xl border border-yellow-500/30 bg-gradient-to-b from-yellow-950/30 to-zinc-900/50 px-10 py-4">
+                <div className="text-[10px] uppercase tracking-[0.3em] text-yellow-500/60 font-bold mb-1">Mega Jackpot — live pool</div>
+                <div className="text-4xl sm:text-5xl font-black tabular-nums bg-gradient-to-r from-yellow-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent animate-[jackpotPulse_2s_ease-in-out_infinite]">
+                  ${jackpot ? jackpot.pool_usd : "0.00"}
+                </div>
+                {jackpot && (
+                  <div className="mt-2 flex items-center gap-3 text-[10px] font-mono">
+                    <span className="text-zinc-500">
+                      main <span className="text-zinc-300">${(Number(jackpot.pool_usd) * (1 - jackpot.sub_pool_fraction)).toFixed(2)}</span>
+                    </span>
+                    <span className="text-zinc-700">·</span>
+                    <span className="text-fuchsia-400/70">
+                      sub-pool <span className="text-fuchsia-300">${(Number(jackpot.pool_usd) * jackpot.sub_pool_fraction).toFixed(2)}</span>
+                    </span>
                   </div>
-                  <div className="text-[10px] text-zinc-500 mt-1">{totalLabels} labels × $0.12 per verified label</div>
+                )}
+                {/* Countdown — reads payoutEtaAt which is fetched from the
+                    server's cooldown_ms_remaining and ticks locally every 1s. */}
+                {jackpot && (
+                  <div className="mt-3 border-t border-yellow-500/20 pt-2 w-full text-center">
+                    <div className="text-[9px] uppercase tracking-[0.3em] text-yellow-500/50 font-semibold">
+                      next payout in
+                    </div>
+                    <div className="mt-0.5 text-sm font-mono font-bold tabular-nums text-yellow-200">
+                      {payoutEtaAt === null || payoutEtaAt <= nowTick
+                        ? "admin can pay any time"
+                        : formatCountdown(payoutEtaAt - nowTick)}
+                    </div>
+                  </div>
+                )}
+                {jackpot && (
+                  <div
+                    className="mt-2 text-[9px] uppercase tracking-[0.2em] text-zinc-600"
+                    title={`Cap: ${jackpot.weight_cap_per_period} weighted points/period • Payout cooldown: ${jackpot.payout_cooldown_days}d • Pro 1.5× • Dedicated 2× rank`}
+                  >
+                    subs get {jackpot.rank_weight_by_tier.pro}×/{jackpot.rank_weight_by_tier.dedicated}× rank + {(jackpot.sub_pool_fraction * 100).toFixed(0)}% sub-pool
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Live panels: main top-3 · sub-pool top-2 · last payout. All
+                driven by real /v1/jackpot data. No demo state. */}
+            {jackpot && (
+              <div className="grid gap-4 md:grid-cols-3">
+                {/* Main pool top 3 */}
+                <div className="rounded-2xl border border-yellow-500/20 bg-zinc-900/40 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-yellow-400/80 font-bold">
+                      main pool · top 3
+                    </div>
+                    <div className="text-[10px] font-mono text-zinc-500">
+                      {jackpot.payout_split_pct.join("/")}%
+                    </div>
+                  </div>
+                  {jackpot.top_labelers.length === 0 ? (
+                    <div className="text-xs text-zinc-600 py-4 text-center">no labels this period yet</div>
+                  ) : (
+                    <ul className="space-y-2">
+                      {jackpot.top_labelers.slice(0, 3).map((lab, i) => {
+                        const poolUsd = Number(jackpot.pool_usd);
+                        const mainUsd = poolUsd * (1 - jackpot.sub_pool_fraction);
+                        const splitFrac = (jackpot.payout_split_pct[i] || 0) / 100;
+                        const projected = (mainUsd * splitFrac).toFixed(3);
+                        const badge = tierBadge(lab.tier);
+                        return (
+                          <li key={lab.key_short} className="flex items-center gap-2">
+                            <div className={`flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold ${
+                              i === 0 ? "bg-yellow-500/20 text-yellow-300"
+                              : i === 1 ? "bg-zinc-400/20 text-zinc-300"
+                              : "bg-amber-700/30 text-amber-400"
+                            }`}>
+                              {i + 1}
+                            </div>
+                            <span className={`inline-flex items-center rounded-full border px-1.5 py-0 text-[9px] font-semibold tracking-wide ${badge.cls}`}>
+                              {badge.label}
+                            </span>
+                            <span className="flex-1 truncate text-sm text-zinc-200">
+                              {lab.display_name}
+                            </span>
+                            <span className="text-[10px] font-mono text-zinc-500">{lab.label_count.toFixed(1)} pts</span>
+                            <span className="text-xs font-bold text-emerald-400 tabular-nums">${projected}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+
+                {/* Sub-pool top 2 */}
+                <div className="rounded-2xl border border-fuchsia-500/20 bg-zinc-900/40 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-fuchsia-300/80 font-bold">
+                      sub-pool · top 2
+                    </div>
+                    <div className="text-[10px] font-mono text-zinc-500">
+                      {jackpot.sub_pool_split_pct.join("/")}%
+                    </div>
+                  </div>
+                  {(() => {
+                    const subs = jackpot.top_labelers.filter(l => (l.tier || "free") !== "free").slice(0, 2);
+                    if (subs.length === 0) {
+                      return <div className="text-xs text-zinc-600 py-4 text-center">no subscribers ranked · sub-pool rolls into main</div>;
+                    }
+                    const poolUsd = Number(jackpot.pool_usd);
+                    const subUsd = poolUsd * jackpot.sub_pool_fraction;
+                    return (
+                      <ul className="space-y-2">
+                        {subs.map((lab, i) => {
+                          const splitFrac = (jackpot.sub_pool_split_pct[i] || 0) / 100;
+                          const projected = (subUsd * splitFrac).toFixed(3);
+                          const badge = tierBadge(lab.tier);
+                          return (
+                            <li key={lab.key_short} className="flex items-center gap-2">
+                              <div className={`flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold ${
+                                i === 0 ? "bg-fuchsia-500/20 text-fuchsia-300" : "bg-fuchsia-500/10 text-fuchsia-400"
+                              }`}>
+                                {i + 1}
+                              </div>
+                              <span className={`inline-flex items-center rounded-full border px-1.5 py-0 text-[9px] font-semibold tracking-wide ${badge.cls}`}>
+                                {badge.label}
+                              </span>
+                              <span className="flex-1 truncate text-sm text-zinc-200">{lab.display_name}</span>
+                              <span className="text-[10px] font-mono text-zinc-500">{lab.label_count.toFixed(1)} pts</span>
+                              <span className="text-xs font-bold text-fuchsia-300 tabular-nums">${projected}</span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    );
+                  })()}
+                  <div className="mt-3 text-[10px] text-zinc-600 border-t border-zinc-800 pt-2">
+                    subs get <span className="text-fuchsia-400">{(jackpot.sub_pool_fraction * 100).toFixed(0)}%</span> carveout +{" "}
+                    <Link href="/subscribe" className="text-fuchsia-300 hover:text-fuchsia-200 underline">upgrade</Link>
+                  </div>
+                </div>
+
+                {/* Last payout */}
+                <div className="rounded-2xl border border-zinc-700/50 bg-zinc-900/40 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-400 font-bold">last payout</div>
+                    {jackpot.last_payout?.at
+                      ? <div className="text-[10px] font-mono text-zinc-500">{formatSince(jackpot.last_payout.at)}</div>
+                      : null}
+                  </div>
+                  {!jackpot.last_payout ? (
+                    <div className="text-xs text-zinc-600 py-4 text-center">no payouts yet — be the first to win</div>
+                  ) : (
+                    <>
+                      <div className="text-lg font-bold tabular-nums text-zinc-100">
+                        ${(jackpot.last_payout.pool_mcents / 100000).toFixed(2)}
+                      </div>
+                      <div className="text-[10px] text-zinc-500 mb-2">paid out · {jackpot.last_payout.winners.length} winner{jackpot.last_payout.winners.length === 1 ? "" : "s"}</div>
+                      <ul className="space-y-1.5">
+                        {jackpot.last_payout.winners.slice(0, 5).map((w, i) => {
+                          const badge = tierBadge(w.tier);
+                          return (
+                            <li key={`${w.key_short}-${i}`} className="flex items-center gap-2 text-xs">
+                              <span className={`inline-flex items-center rounded-full border px-1.5 py-0 text-[9px] font-semibold ${badge.cls}`}>
+                                {badge.label}
+                              </span>
+                              {w.bucket === "sub" && (
+                                <span className="text-[9px] text-fuchsia-400 uppercase tracking-wide">sub</span>
+                              )}
+                              <span className="flex-1 truncate text-zinc-300">{w.display_name}</span>
+                              <span className="font-mono font-semibold text-emerald-400 tabular-nums">
+                                ${(w.share_mcents / 100000).toFixed(3)}
+                              </span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </>
+                  )}
                 </div>
               </div>
+            )}
 
-              {/* Per-agent earnings */}
-              <div className="flex items-center justify-center gap-3 flex-wrap">
+            {/* Demo arena sim — legacy per-agent earnings, only while the
+                local sim loop is running. Visually secondary to live panels. */}
+            {running && (
+              <div className="mt-5 flex items-center justify-center gap-3 flex-wrap border-t border-zinc-800/50 pt-4">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-600">demo sim</div>
                 {sorted.filter(a => a.score > 0).slice(0, 5).map((agent) => {
                   const earnings = (agent.labels * 0.12 * (agent.trust / 100)).toFixed(2);
                   return (
@@ -272,9 +569,9 @@ export default function ArenaPage() {
                   );
                 })}
               </div>
-            </div>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Combo popup */}
         {showCombo && (

@@ -109,7 +109,7 @@ export default function HowItWorksPage() {
 
             <rect x="840" y="90" width="320" height="70" rx="10" fill="#14532d" stroke="#22c55e" />
             <text x="1000" y="118" fill="#e5e5e5" fontSize="13" textAnchor="middle">dlf_&lt;hex&gt; key</text>
-            <text x="1000" y="138" fill="#bbf7d0" fontSize="11" textAnchor="middle">+ 20,000 mcents ($0.20 starter)</text>
+            <text x="1000" y="138" fill="#bbf7d0" fontSize="11" textAnchor="middle">+ 10,000 mcents ($0.10 starter)</text>
 
             {/* Layer 2: gateway */}
             <rect x="20" y="210" width="1160" height="230" rx="16" fill="#4c1d95" fillOpacity="0.25" stroke="#8b5cf6" strokeOpacity="0.5" />
@@ -282,7 +282,7 @@ export default function HowItWorksPage() {
         <section className="mt-8 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-6">
           <h2 className="text-lg font-semibold">Model marketplace</h2>
           <p className="mt-1 text-sm text-zinc-400 max-w-2xl">
-            Every model an agent trains can be published for others to use. When another agent calls <code className="text-zinc-300">POST /v1/predict/&lt;your-job-id&gt;</code>, they pay the normal 300-mcent inference fee — <span className="text-emerald-300">70% ($0.0021) is credited to the owner&rsquo;s balance</span>, 30% covers GPU + margin. Train once, earn on every inference.
+            Every model an agent trains can be published for others to use. When another agent calls <code className="text-zinc-300">POST /v1/predict/&lt;your-job-id&gt;</code>, they pay the normal 800-mcent inference fee — <span className="text-emerald-300">70% ($0.0056) is credited to the owner&rsquo;s balance</span>, 30% covers GPU + margin. Train once, earn on every inference.
           </p>
           <div className="mt-4 grid gap-4 md:grid-cols-2 text-[11px] font-mono">
             <pre className="overflow-x-auto rounded-lg bg-black/60 border border-zinc-800 p-3 leading-5 text-zinc-300">

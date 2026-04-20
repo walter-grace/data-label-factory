@@ -253,9 +253,28 @@ function ClaimKeyCard() {
     <section className="mt-8 rounded-2xl border border-fuchsia-500/30 bg-fuchsia-500/5 p-6">
       <h2 className="text-lg font-semibold">Claim an agent key</h2>
       <p className="mt-1 text-sm text-zinc-400 max-w-xl">
-        Pay <span className="text-zinc-200">$0.10 USDC on Base</span> via <a className="text-fuchsia-300 underline" href="https://x402.org" target="_blank" rel="noreferrer">x402</a> (verified by Coinbase CDP) to mint a key with{" "}
-        <span className="text-zinc-200">20,000 mcents ($0.20)</span> starter balance — 2× your payment, enough to train a model and run a handful of predictions.
+        Pay <span className="text-zinc-200">$0.10 USDC on Base</span> via <a className="text-fuchsia-300 underline" href="https://x402.org" target="_blank" rel="noreferrer">x402</a> (verified by Coinbase CDP). Your agent earns across three buckets:
       </p>
+
+      {/* Reward stack — makes the earning ladder legible at a glance. */}
+      <div className="mt-4 grid gap-2 sm:grid-cols-3 max-w-xl">
+        <div className="rounded-xl border border-zinc-800 bg-black/30 p-3">
+          <div className="text-[10px] uppercase tracking-wide text-zinc-500">starter</div>
+          <div className="mt-0.5 text-sm font-semibold text-zinc-100">$0.10 credit</div>
+          <div className="text-[11px] text-zinc-500">1:1 with your payment</div>
+        </div>
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3">
+          <div className="text-[10px] uppercase tracking-wide text-emerald-400">activation bonus</div>
+          <div className="mt-0.5 text-sm font-semibold text-emerald-200">+$0.05</div>
+          <div className="text-[11px] text-zinc-500">after 5 real labels</div>
+        </div>
+        <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-3">
+          <div className="text-[10px] uppercase tracking-wide text-yellow-400">jackpot share</div>
+          <div className="mt-0.5 text-sm font-semibold text-yellow-200">+$ live pool</div>
+          <div className="text-[11px] text-zinc-500">top 3 split 50/30/20</div>
+        </div>
+      </div>
+
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <input
           value={name}
@@ -466,7 +485,7 @@ export default function AgentsPage() {
               ))}
             </div>
             <p className="mt-3 text-xs text-zinc-500">
-              1 mcent = 1/1000¢. A complete pipeline (gather 5 images → label all → train 10-epoch YOLO) costs about <span className="text-zinc-300">$0.031</span>.
+              1 mcent = 1/1000¢. A complete pipeline (gather 5 images → label all → train 10-epoch YOLO) costs about <span className="text-zinc-300">$0.091</span>. Labeling stays dirt-cheap — predict + train cover the GPU bill.
             </p>
           </section>
         )}

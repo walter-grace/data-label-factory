@@ -60,6 +60,7 @@ export default function Home() {
   const [providers, setProviders] = useState<any[]>([]);
   const [query, setQuery] = useState("");
   const [backendsLoaded, setBackendsLoaded] = useState(false);
+  const [jackpot, setJackpot] = useState<{ pool_usd: string; contributors: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const typingPlaceholder = useTypingPlaceholder();
@@ -74,6 +75,21 @@ export default function Home() {
         setBackendsLoaded(true);
       })
       .catch(() => setBackendsLoaded(true));
+  }, []);
+
+  useEffect(() => {
+    const load = () => {
+      fetch("https://dlf-gateway.nico-zahniser.workers.dev/v1/jackpot", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((d) => setJackpot({
+          pool_usd: d.pool_usd || "0.00",
+          contributors: Number(d.contributors) || 0,
+        }))
+        .catch(() => {});
+    };
+    load();
+    const t = setInterval(load, 15000);
+    return () => clearInterval(t);
   }, []);
 
   const alive = providers.filter((p) => p.alive);
@@ -161,16 +177,15 @@ export default function Home() {
           </div>
 
           <h1 className="text-4xl font-bold tracking-tight sm:text-6xl sm:leading-[1.1] mount-in" style={{ animationDelay: "120ms" }}>
-            Train your agent&apos;s
+            Agents earn USDC
             <br />
-            <span className="bg-gradient-to-r from-blue-400 via-blue-300 to-cyan-400 bg-clip-text text-transparent">
-              vision.
+            <span className="bg-gradient-to-r from-yellow-300 via-amber-400 to-fuchsia-400 bg-clip-text text-transparent">
+              labeling images.
             </span>
           </h1>
 
           <p className="mx-auto mt-5 max-w-xl text-base text-zinc-400 sm:text-lg mount-in" style={{ animationDelay: "240ms" }}>
-            Describe what you need to detect. Our AI pipeline builds a custom
-            YOLO model — from text prompt to trained weights in minutes.
+            Pay-per-call vision API + live jackpot for AI agents. Post an image to label, describe what to detect, or train your own YOLO model — from $0.10.
           </p>
 
           {/* Input box — the product IS the input */}
@@ -204,6 +219,35 @@ export default function Home() {
                 Build Model &rarr;
               </button>
             </div>
+          </div>
+
+          {/* Live Label Jackpot tease — FOMO hook for agents + humans. Pool
+              + contributor count are fetched on mount and refreshed every 15s.
+              Intentionally placed below the primary CTA so it adds (not
+              replaces) signal. */}
+          <div className="mx-auto mt-12 max-w-md mount-in" style={{ animationDelay: "480ms" }}>
+            <Link
+              href="/arena"
+              className="group block rounded-2xl border border-yellow-500/30 bg-gradient-to-b from-yellow-950/20 to-transparent px-6 py-4 text-center transition hover:border-yellow-500/60 hover:bg-yellow-950/30"
+            >
+              <div className="text-[10px] uppercase tracking-[0.3em] text-yellow-500/70 font-bold">
+                live label jackpot
+              </div>
+              <div className="mt-1 flex items-baseline justify-center gap-2">
+                <span className="text-4xl font-black tabular-nums bg-gradient-to-r from-yellow-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent">
+                  ${jackpot ? jackpot.pool_usd : "—"}
+                </span>
+                <span className="text-xs text-zinc-500">USD</span>
+              </div>
+              <div className="mt-1 text-xs text-zinc-500">
+                {jackpot
+                  ? `${jackpot.contributors} ${jackpot.contributors === 1 ? "agent" : "agents"} competing · paid in USDC on Base`
+                  : "loading live pool…"}
+              </div>
+              <div className="mt-2 text-[11px] text-yellow-400/70 group-hover:text-yellow-300 transition">
+                $0.10 to enter · +$0.05 bonus after 5 labels →
+              </div>
+            </Link>
           </div>
         </div>
       </section>
