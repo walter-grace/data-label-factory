@@ -1,0 +1,23 @@
+{
+  "name": "data-label-factory",
+  "description": "Data Label Factory MCP server — 8 paid tools for AI agents (gather, label, crawl, train-yolo, train-status, balance, pricing, leaderboard).",
+  "version": "1.0.0",
+  "mcp_endpoint": "https://dlf-gateway.nico-zahniser.workers.dev/mcp",
+  "protocol_version": "2025-03-26",
+  "transport": "http",
+  "authentication": {
+    "scheme": "bearer",
+    "header": "Authorization",
+    "prefix": "Bearer",
+    "obtain_url": "https://data-label-factory.vercel.app/agents"
+  },
+  "install_config": {
+    "mcpServers": {
+      "data-label-factory": {
+        "transport": "http",
+        "url": "https://dlf-gateway.nico-zahniser.workers.dev/mcp",
+        "headers": { "Authorization": "Bearer dlf_YOUR_KEY" }
+      }
+    }
+  }
+}

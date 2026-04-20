@@ -3,11 +3,14 @@
 
 User-agent: *
 Allow: /
+Content-Signal: search=yes, ai-train=no, ai-input=yes
 
 Sitemap: https://data-label-factory.vercel.app/sitemap.xml
 
 # Agent-readable machine docs:
 #   https://data-label-factory.vercel.app/llms.txt
+#   https://data-label-factory.vercel.app/.well-known/mcp.json
+#   https://data-label-factory.vercel.app/.well-known/a2a-agent-card.json
 #
 # Pay-per-call vision API + marketplace for AI agents:
 #   https://dlf-gateway.nico-zahniser.workers.dev/llms.txt

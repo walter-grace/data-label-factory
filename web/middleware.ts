@@ -73,6 +73,27 @@ function decorateAgentHeaders(res: NextResponse): NextResponse {
   return res;
 }
 
+// Markdown content negotiation (isitagentready.com `markdownNegotiation`
+// check). When an agent sends `Accept: text/markdown`, rewrite the request
+// to our /md route handler which returns a page-specific markdown body
+// with the correct Content-Type + x-markdown-tokens header. HTML stays
+// default for browsers.
+function wantsMarkdown(req: NextRequest): boolean {
+  const accept = req.headers.get("accept") || "";
+  // Match `text/markdown` as a primary or weighted option.
+  return /(^|[,;\s])text\/markdown([,;\s]|$|;q=)/i.test(accept);
+}
+
+function shouldNegotiateMarkdown(req: NextRequest): boolean {
+  if (!wantsMarkdown(req)) return false;
+  const p = req.nextUrl.pathname;
+  // Skip asset + api + _next paths — only negotiate on human-facing pages.
+  if (p.startsWith("/md/")) return false;
+  if (p.startsWith("/_next/") || p.startsWith("/api/")) return false;
+  if (/\.(png|jpg|jpeg|svg|gif|webp|ico|css|js|json|xml|txt|md|woff2?)$/i.test(p)) return false;
+  return true;
+}
+
 function createMiddleware() {
   if (clerkMiddleware && createRouteMatcher) {
     const isPublicRoute = createRouteMatcher(PUBLIC_PATTERNS);
@@ -82,8 +103,17 @@ function createMiddleware() {
       }
     });
   }
-  // No Clerk — pass everything through with Agent Readiness headers attached.
-  return (_req: NextRequest) => decorateAgentHeaders(NextResponse.next());
+  return (req: NextRequest) => {
+    // Content negotiation first: if the agent asked for markdown, rewrite
+    // to /md/<path> before the normal HTML flow runs.
+    if (shouldNegotiateMarkdown(req)) {
+      const url = req.nextUrl.clone();
+      url.pathname = `/md${url.pathname === "/" ? "" : url.pathname}`;
+      return decorateAgentHeaders(NextResponse.rewrite(url));
+    }
+    // Normal flow — pass through with Agent Readiness headers attached.
+    return decorateAgentHeaders(NextResponse.next());
+  };
 }
 
 export default createMiddleware();
