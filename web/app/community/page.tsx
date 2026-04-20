@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import SiteNav from "@/components/SiteNav";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -83,33 +84,7 @@ function CommunityIcon({ icon, color }: { icon: string; color: string }) {
 /* ------------------------------------------------------------------ */
 
 function Nav() {
-  return (
-    <nav className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur sticky top-0 z-30">
-      <div className="max-w-6xl mx-auto flex items-center gap-6 px-4 h-14 text-sm">
-        <Link href="/" className="font-bold text-blue-400 tracking-tight">
-          DLF
-        </Link>
-        <Link href="/go" className="text-zinc-400 hover:text-white">
-          Go
-        </Link>
-        <Link href="/play" className="text-zinc-400 hover:text-white">
-          Play
-        </Link>
-        <Link href="/arena" className="text-zinc-400 hover:text-white">
-          Arena
-        </Link>
-        <Link href="/community" className="text-white font-medium">
-          Community
-        </Link>
-        <Link href="/parse" className="text-zinc-400 hover:text-white">
-          Parse
-        </Link>
-        <Link href="/connect" className="text-zinc-400 hover:text-white">
-          Connect
-        </Link>
-      </div>
-    </nav>
-  );
+  return <SiteNav />;
 }
 
 /* ------------------------------------------------------------------ */
