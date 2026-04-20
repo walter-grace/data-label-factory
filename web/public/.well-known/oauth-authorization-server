@@ -1,0 +1,20 @@
+{
+  "issuer": "https://dlf-gateway.nico-zahniser.workers.dev",
+  "authorization_endpoint": "https://data-label-factory.vercel.app/agents",
+  "token_endpoint": "https://dlf-gateway.nico-zahniser.workers.dev/v1/signup",
+  "token_endpoint_auth_methods_supported": ["none"],
+  "grant_types_supported": ["urn:x402:exact", "urn:x402:upto"],
+  "response_types_supported": ["token"],
+  "scopes_supported": ["all", "crawl", "gather", "label", "train", "predict", "read"],
+  "service_documentation": "https://dlf-gateway.nico-zahniser.workers.dev/llms.txt",
+  "ui_locales_supported": ["en"],
+  "bearer_methods_supported": ["header"],
+  "introspection_endpoint": "https://dlf-gateway.nico-zahniser.workers.dev/v1/balance",
+  "x402_version": 1,
+  "x_payment_chain": "base-mainnet",
+  "x_payment_asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "x_payment_asset_name": "USDC",
+  "x_payment_facilitator": "Coinbase CDP",
+  "x_signup_cost_usdc": "0.10",
+  "x_note": "DLF uses x402 micropayments as the grant flow rather than traditional OAuth. POST /v1/signup returns HTTP 402 with an x402 quote; sign the payment on Base, resubmit with X-PAYMENT header, receive a Bearer token (dlf_<hex>) with a starter balance."
+}

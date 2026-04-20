@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import { Geist, Geist_Mono } from "next/font/google";
+import WebMcpRegistrar from "@/components/WebMcpRegistrar";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -62,6 +63,10 @@ export default function RootLayout({
             baseTheme: dark,
           }}
         >
+          {/* WebMCP: registers browser-scoped tools so agentic browsers
+              (Chrome's ModelContext, etc.) can discover site actions on
+              page load. See isitagentready.com `discovery.webMcp`. */}
+          <WebMcpRegistrar />
           {children}
         </ClerkProvider>
       </body>

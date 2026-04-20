@@ -1,0 +1,20 @@
+{
+  "resource": "https://data-label-factory.vercel.app",
+  "resource_name": "Data Label Factory",
+  "authorization_servers": [
+    "https://dlf-gateway.nico-zahniser.workers.dev"
+  ],
+  "scopes_supported": ["all", "crawl", "gather", "label", "train", "predict", "read"],
+  "bearer_methods_supported": ["header"],
+  "resource_documentation": "https://dlf-gateway.nico-zahniser.workers.dev/llms.txt",
+  "resource_signing_alg_values_supported": [],
+  "resource_encryption_alg_values_supported": [],
+  "resource_encryption_enc_values_supported": [],
+  "resource_tls_client_certificate_bound_access_tokens": false,
+  "authorization_details_types_supported": [],
+  "dpop_signing_alg_values_supported": [],
+  "x_payment_protocol": "x402",
+  "x_obtain_token_url": "https://data-label-factory.vercel.app/agents",
+  "x_token_format": "opaque",
+  "x_token_prefix": "dlf_"
+}
