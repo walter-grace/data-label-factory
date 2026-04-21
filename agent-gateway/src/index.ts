@@ -1731,16 +1731,24 @@ async function listUserModels(env: Env, key: string): Promise<string[]> {
   const list = await env.KEYS.list({ prefix, limit: 200 });
   let jobIds = list.keys.map((k) => k.name.slice(prefix.length));
   if (jobIds.length === 0) {
-    // Lazy backfill: scan up to 500 `model_owner:*` entries, find this
-    // user's, and populate the index. One-time cost per user.
-    const scan = await env.KEYS.list({ prefix: "model_owner:", limit: 500 });
-    for (const k of scan.keys) {
-      const ownerKey = await env.KEYS.get(k.name);
-      if (ownerKey === key) {
-        const jobId = k.name.slice("model_owner:".length);
-        jobIds.push(jobId);
-        try { await env.KEYS.put(`user_model:${keyShort}:${jobId}`, String(Date.now())); } catch {}
+    // Lazy backfill: scan up to 100 `model_owner:*` entries, find this
+    // user's, populate the index, and STAMP the fact that we scanned so
+    // subsequent calls skip this work even if the user has no models.
+    // Capped at 100 (not 500) so a cold /v1/my-models never starves the
+    // parallel /v1/balance / /v1/my-uploads calls on the same request.
+    const scanMarker = `user_model_scan:${keyShort}`;
+    const alreadyScanned = await env.KEYS.get(scanMarker);
+    if (!alreadyScanned) {
+      const scan = await env.KEYS.list({ prefix: "model_owner:", limit: 100 });
+      for (const k of scan.keys) {
+        const ownerKey = await env.KEYS.get(k.name);
+        if (ownerKey === key) {
+          const jobId = k.name.slice("model_owner:".length);
+          jobIds.push(jobId);
+          try { await env.KEYS.put(`user_model:${keyShort}:${jobId}`, String(Date.now())); } catch {}
+        }
       }
+      try { await env.KEYS.put(scanMarker, String(Date.now())); } catch {}
     }
   }
   return jobIds;

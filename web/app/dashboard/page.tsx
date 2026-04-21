@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import SiteNav from "@/components/SiteNav";
 
 const GATEWAY = "https://dlf-gateway.agentlabel.workers.dev";
 
@@ -77,34 +76,41 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!token) { setLoading(false); return; }
     let cancelled = false;
+    // Sequential — /v1/my-models does a prefix scan on KEYS that can race
+    // /v1/balance under parallel load and return a transient "invalid api
+    // key". Doing them in order removes the race for ~300ms total cost.
     (async () => {
       setLoading(true);
       setErr(null);
-      try {
-        const hdrs = { Authorization: `Bearer ${token}` };
-        const [b, u, m] = await Promise.all([
-          fetch(`${GATEWAY}/v1/balance`, { headers: hdrs }).then((r) => r.json()),
-          fetch(`${GATEWAY}/v1/my-uploads`, { headers: hdrs }).then((r) => r.json()),
-          fetch(`${GATEWAY}/v1/my-models`, { headers: hdrs }).then((r) => r.json()),
-        ]);
-        if (cancelled) return;
-        if (b?.ok) setBalance(b);
-        else setErr(b?.error || "failed to load balance");
-        setUploads(u?.uploads || []);
-        setModels(m?.models || []);
-      } catch (e: any) {
-        if (!cancelled) setErr(e?.message || "network error");
-      } finally {
-        if (!cancelled) setLoading(false);
+      const hdrs = { Authorization: `Bearer ${token}` };
+      async function safeJson<T>(url: string): Promise<T | null> {
+        try {
+          const r = await fetch(url, { headers: hdrs, cache: "no-store" });
+          return (await r.json()) as T;
+        } catch {
+          return null;
+        }
       }
+      const b = await safeJson<Balance>(`${GATEWAY}/v1/balance`);
+      if (cancelled) return;
+      if (b?.ok) setBalance(b);
+      else { setErr((b as any)?.error || "failed to load balance"); setLoading(false); return; }
+
+      const u = await safeJson<{ uploads: UploadRow[] }>(`${GATEWAY}/v1/my-uploads`);
+      if (cancelled) return;
+      setUploads(u?.uploads || []);
+
+      const m = await safeJson<{ models: ModelRow[] }>(`${GATEWAY}/v1/my-models`);
+      if (cancelled) return;
+      setModels(m?.models || []);
+
+      setLoading(false);
     })();
     return () => { cancelled = true; };
   }, [token]);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      <SiteNav />
-
+    <div>
       <div className="mx-auto max-w-5xl px-6 py-10">
         <div className="mb-8">
           <h1 className="text-3xl font-bold">Your account</h1>
