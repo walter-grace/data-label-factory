@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 
+import SiteNav from "@/components/SiteNav";
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
 /* ------------------------------------------------------------------ */
@@ -594,51 +595,7 @@ export default function PlayPage() {
       className="min-h-screen bg-zinc-950 text-zinc-100"
       style={shakeScreen ? { animation: "shakeX 0.5s ease-in-out" } : undefined}
     >
-      {/* Nav */}
-      <nav className="fixed top-0 z-50 w-full border-b border-white/5 bg-zinc-950/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-xs font-black">DLF</div>
-            <span className="text-sm font-semibold tracking-tight">Flywheel</span>
-          </Link>
-          <div className="hidden items-center gap-8 text-sm text-zinc-400 sm:flex">
-            <Link href="/" className="transition hover:text-white">Home</Link>
-            <Link href="/build" className="transition hover:text-white">Build</Link>
-            <Link href="/play" className="text-white">Play</Link>
-            <Link href="/pricing" className="transition hover:text-white">Pricing</Link>
-          </div>
-          {mode !== "menu" && mode !== "results" && (
-            <div className="flex items-center gap-4 text-sm">
-              {/* Animated score */}
-              <div className="font-mono font-bold text-blue-400 overflow-hidden">
-                <span style={{ display: "inline-block", animation: score !== displayScore ? "scoreRollUp 0.3s ease-out" : "none" }}>
-                  {displayScore}
-                </span>
-                <span className="text-blue-400/60 ml-0.5">pts</span>
-              </div>
-              {currentMultiplier > 1 && (
-                <span
-                  className="font-black text-sm px-2 py-0.5 rounded-full"
-                  style={{
-                    background: streakLabel?.color === "rainbow" ? "linear-gradient(90deg, #ff0000, #ff8800, #ffdd00, #00dd00, #0088ff, #8800ff)" : undefined,
-                    backgroundColor: streakLabel?.color !== "rainbow" ? (streakLabel?.color || "#FFD700") : undefined,
-                    color: "#000",
-                    animation: "badgeBounce 0.4s ease-out",
-                  }}
-                >
-                  {currentMultiplier}x
-                </span>
-              )}
-              <div
-                className="text-2xl font-mono font-bold"
-                style={timeLeft <= 10 ? { animation: "timerPanic 0.5s ease-in-out infinite" } : { color: "#d4d4d8" }}
-              >
-                {timeLeft}s
-              </div>
-            </div>
-          )}
-        </div>
-      </nav>
+      <SiteNav variant="transparent" />
 
       {/* XP Bar (under nav, during gameplay) */}
       {(mode === "filter" || mode === "bbox") && (

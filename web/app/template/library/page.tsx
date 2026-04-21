@@ -16,6 +16,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
+import SiteNav from "@/components/SiteNav";
 type TemplateSummary = {
   name: string;
   display_name: string;
@@ -119,34 +120,7 @@ export default function TemplateLibraryPage() {
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
-      {/* Nav */}
-      <nav className="sticky top-0 z-50 w-full border-b border-white/5 bg-zinc-950/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-xs font-black">
-              DLF
-            </div>
-            <span className="text-sm font-semibold tracking-tight">
-              Data Label Factory
-            </span>
-          </Link>
-          <div className="hidden items-center gap-8 text-sm text-zinc-400 sm:flex">
-            <Link href="/build" className="transition hover:text-white">Build</Link>
-            <Link href="/train" className="transition hover:text-white">Train</Link>
-            <Link href="/label" className="transition hover:text-white">Label</Link>
-            <Link href="/parse" className="transition hover:text-white">Parse</Link>
-            <Link href="/deploy" className="transition hover:text-white">Deploy</Link>
-            <Link href="/pricing" className="transition hover:text-white">Pricing</Link>
-            <a
-              href="https://github.com/walter-grace/data-label-factory"
-              target="_blank"
-              className="transition hover:text-white"
-            >
-              GitHub
-            </a>
-          </div>
-        </div>
-      </nav>
+      <SiteNav />
 
       {/* Hero */}
       <section className="border-b border-zinc-900/80 bg-gradient-to-b from-blue-950/30 to-zinc-950">

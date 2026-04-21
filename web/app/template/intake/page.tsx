@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import SiteNav from "@/components/SiteNav";
 import { useRouter } from "next/navigation";
 
 /**
@@ -168,23 +169,7 @@ export default function TemplateIntakePage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      {/* Nav */}
-      <nav className="sticky top-0 z-20 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link href="/" className="text-lg font-bold tracking-tight">
-            Data Label Factory
-          </Link>
-          <div className="flex gap-6 text-sm text-zinc-400">
-            <Link href="/build" className="hover:text-white">Build</Link>
-            <Link href="/train" className="hover:text-white">Train</Link>
-            <Link href="/label" className="hover:text-white">Label</Link>
-            <Link href="/parse" className="hover:text-white">Parse</Link>
-            <Link href="/template/intake" className="text-white">Intake</Link>
-            <Link href="/deploy" className="hover:text-white">Deploy</Link>
-            <Link href="/pricing" className="hover:text-white">Pricing</Link>
-          </div>
-        </div>
-      </nav>
+      <SiteNav />
 
       <div className="mx-auto max-w-6xl px-6 py-12">
         <div className="mb-8">

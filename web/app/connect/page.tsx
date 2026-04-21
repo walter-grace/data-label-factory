@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 
+import SiteNav from "@/components/SiteNav";
 export default function ConnectPage() {
   const [agentName, setAgentName] = useState("");
   const [agentType, setAgentType] = useState("llm");
@@ -53,23 +54,7 @@ export default function ConnectPage() {
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
-      {/* Nav */}
-      <nav className="fixed top-0 z-50 w-full border-b border-white/5 bg-zinc-950/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-xs font-black">DLF</div>
-            <span className="text-sm font-semibold tracking-tight">Data Label Factory</span>
-          </Link>
-          <div className="hidden items-center gap-8 text-sm text-zinc-400 sm:flex">
-            <Link href="/build" className="transition hover:text-white">Build</Link>
-            <Link href="/play" className="transition hover:text-white">Play</Link>
-            <Link href="/connect" className="text-white">Connect</Link>
-            <Link href="/pricing" className="transition hover:text-white">Pricing</Link>
-            <a href="https://github.com/walter-grace/data-label-factory" target="_blank" className="transition hover:text-white">GitHub</a>
-          </div>
-          <Link href="/build" className="rounded-lg bg-white px-4 py-1.5 text-sm font-medium text-zinc-900 transition hover:bg-zinc-200">Get Started</Link>
-        </div>
-      </nav>
+      <SiteNav variant="transparent" />
 
       <div className="mx-auto max-w-4xl px-6 pt-24 pb-16">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
