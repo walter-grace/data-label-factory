@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,9 @@ import Link from "next/link";
 type ImageItem = {
   file: File;
   url: string;
+  // If the user added this image by pasting a public URL, we keep it here
+  // so the "Push to Agent Swarm" handoff can forward real URLs (not blob://).
+  source_url?: string;
   name: string;
   filterResult?: { verdict: string; raw_answer: string; elapsed: number; confidence: number };
   labelResult?: { annotations: any[]; elapsed: number; n_detections: number; image_size: number[] };
@@ -47,7 +50,28 @@ async function dlfPost(endpoint: string, formData: FormData) {
 /* Component                                                           */
 /* ------------------------------------------------------------------ */
 
+// Mirror of community-store.QUERY_MAP → slug. Kept client-side so /build
+// can route a "Push to Agent Swarm" handoff to the right community
+// without a round trip.
+const COMMUNITY_SLUG_MAP: Array<[string, RegExp]> = [
+  ["wildlife", /\b(tiger|lion|bear|bird|fish|deer|wolf|elephant|whale|shark|eagle|animal|wildlife|dog|cat|snake|frog|insect|butterfly)\b/i],
+  ["vehicles", /\b(car|truck|drone|airplane|helicopter|boat|bicycle|motorcycle|bus|train|vehicle|traffic)\b/i],
+  ["documents", /\b(invoice|receipt|w2|1099|contract|form|document|pdf|letter|report)\b/i],
+  ["sports", /\b(pickleball|basketball|soccer|football|tennis|baseball|golf|hockey|volleyball|cricket)\b/i],
+  ["medical", /\b(xray|x-ray|ct scan|mri|pathology|medical|radiology|cell|tumor|brain)\b/i],
+  ["food", /\b(food|fruit|vegetable|crop|plant|farm|apple|tomato|wheat|corn|rice)\b/i],
+  ["retail", /\b(product|shelf|barcode|package|bottle|shoe|clothing|store)\b/i],
+  ["construction", /\b(ppe|helmet|safety|construction|building|crane|scaffold|harness|hard hat)\b/i],
+  ["gaming", /\b(card|pokemon|yugioh|yu-gi-oh|poker|chess|dice)\b/i],
+  ["satellite", /\b(satellite|aerial|roof|land|forest|ocean|city|map)\b/i],
+];
+function guessCommunitySlug(query: string): string {
+  for (const [slug, re] of COMMUNITY_SLUG_MAP) if (re.test(query)) return slug;
+  return "wildlife";
+}
+
 function BuildPageInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [step, setStep] = useState<Step>("input");
   const [target, setTarget] = useState(searchParams.get("target") || "");
@@ -112,16 +136,24 @@ function BuildPageInner() {
 
   const importFromUrl = async () => {
     if (!urlInput.trim()) return;
+    const sourceUrl = urlInput.trim();
     setUrlLoading(true);
     try {
       // Try to fetch image directly
-      const res = await fetch(urlInput);
+      const res = await fetch(sourceUrl);
       const ct = res.headers.get("content-type") || "";
       if (ct.startsWith("image/")) {
         const blob = await res.blob();
-        const fname = urlInput.split("/").pop() || "imported.jpg";
+        const fname = sourceUrl.split("/").pop() || "imported.jpg";
         const file = new File([blob], fname, { type: blob.type });
-        addFiles([file]);
+        const item: ImageItem = {
+          file,
+          url: URL.createObjectURL(file),
+          source_url: sourceUrl,
+          name: fname,
+          status: "pending",
+        };
+        setImages((prev) => [...prev, item]);
         setUrlInput("");
         toast.success("Image imported");
       } else {
@@ -644,20 +676,43 @@ function BuildPageInner() {
               )}
 
               {/* Run button */}
-              <div className="flex items-center justify-between pt-4">
+              <div className="flex items-center justify-between pt-4 gap-3">
                 <span className="text-sm text-zinc-400">
                   {images.length} image{images.length !== 1 ? "s" : ""} ready
                 </span>
-                <Button
-                  onClick={runPipeline}
-                  disabled={!target.trim() || images.length === 0}
-                  className="bg-blue-600 hover:bg-blue-500 rounded-xl px-8 h-11 text-base font-semibold shadow-lg shadow-blue-600/25"
-                >
-                  Run Pipeline
-                  <svg className="ml-2 h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                  </svg>
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={() => {
+                      if (!target.trim()) {
+                        toast.error("Enter what you want to detect");
+                        return;
+                      }
+                      const slug = guessCommunitySlug(target);
+                      const urls = images
+                        .map((i) => i.source_url)
+                        .filter((u): u is string => !!u);
+                      const params = new URLSearchParams({ query: target.trim() });
+                      if (urls.length > 0) params.set("urls", urls.join(","));
+                      router.push(`/community/${slug}/post-job?${params.toString()}`);
+                    }}
+                    disabled={!target.trim()}
+                    variant="outline"
+                    className="h-11 rounded-xl border-zinc-700 bg-zinc-900 px-5 text-sm font-semibold hover:border-blue-500 hover:bg-zinc-800"
+                    title="Post this target + any URL-imported images as a paid job for agents to label"
+                  >
+                    Push to Agent Swarm
+                  </Button>
+                  <Button
+                    onClick={runPipeline}
+                    disabled={!target.trim() || images.length === 0}
+                    className="bg-blue-600 hover:bg-blue-500 rounded-xl px-8 h-11 text-base font-semibold shadow-lg shadow-blue-600/25"
+                  >
+                    Run Pipeline
+                    <svg className="ml-2 h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                    </svg>
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

@@ -17,7 +17,7 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const GATEWAY = "https://dlf-gateway.agentlabel.workers.dev";
 
@@ -33,13 +33,18 @@ type Balance = { balance_mcents: number; xp?: number; level?: number };
 export default function PostJobPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [token, setToken] = useState("");
   const [balance, setBalance] = useState<Balance | null>(null);
   const [balanceErr, setBalanceErr] = useState<string | null>(null);
 
-  const [query, setQuery] = useState("");
-  const [imageText, setImageText] = useState("");
+  // Prefill from /build's "Push to Agent Swarm" handoff (?query=&urls=).
+  const [query, setQuery] = useState(() => searchParams.get("query") || "");
+  const [imageText, setImageText] = useState(() => {
+    const u = searchParams.get("urls");
+    return u ? u.split(",").filter(Boolean).join("\n") : "";
+  });
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
