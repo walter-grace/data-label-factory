@@ -1,168 +1,265 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useUser } from "@clerk/nextjs";
+import SiteNav from "@/components/SiteNav";
 
-// Placeholder data — in production, fetch from your database
-const MOCK_PROJECTS = [
-  {
-    id: "proj_1",
-    name: "Fire Hydrants",
-    images: 18,
-    status: "labeled",
-    createdAt: "2026-04-12",
-  },
-  {
-    id: "proj_2",
-    name: "Stop Signs",
-    images: 42,
-    status: "training",
-    createdAt: "2026-04-10",
-  },
-];
+const GATEWAY = "https://dlf-gateway.agentlabel.workers.dev";
 
-const USAGE = {
-  plan: "free",
-  imagesUsed: 18,
-  imagesLimit: 25,
-  modelsUsed: 0,
-  modelsLimit: 0,
+type Balance = {
+  ok: boolean;
+  balance_mcents: number;
+  xp: number;
+  level: number;
+  display_name?: string;
+  tier?: string;
+  calls_by_type?: Record<string, number>;
 };
 
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    labeled: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-    training: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-    gathering: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-    complete: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
-  };
+type UploadRow = {
+  url: string;
+  object_key: string;
+  size: number;
+  content_type?: string;
+  uploaded_at?: number;
+  original_name?: string;
+};
 
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${
-        styles[status] ?? styles.complete
-      }`}
-    >
-      {status === "training" && (
-        <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
-      )}
-      {status.charAt(0).toUpperCase() + status.slice(1)}
-    </span>
-  );
+type ModelRow = {
+  job_id: string;
+  published: boolean;
+  display_name?: string;
+  description?: string;
+  uses: number;
+  revenue_mcents: number;
+  created_at?: number;
+  published_at?: number;
+  predict_url: string;
+};
+
+function formatUSD(mcents: number): string {
+  return `$${(mcents / 100000).toFixed(3)}`;
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function timeAgo(ts?: number): string {
+  if (!ts) return "";
+  const diff = Math.max(0, Date.now() - ts) / 1000;
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
 }
 
 export default function DashboardPage() {
-  const { user } = useUser();
+  const [token, setToken] = useState("");
+  const [balance, setBalance] = useState<Balance | null>(null);
+  const [uploads, setUploads] = useState<UploadRow[]>([]);
+  const [models, setModels] = useState<ModelRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
 
-  const usagePercent =
-    USAGE.imagesLimit > 0
-      ? Math.min(100, Math.round((USAGE.imagesUsed / USAGE.imagesLimit) * 100))
-      : 0;
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("dlf_key");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.key?.startsWith("dlf_")) setToken(parsed.key);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (!token) { setLoading(false); return; }
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setErr(null);
+      try {
+        const hdrs = { Authorization: `Bearer ${token}` };
+        const [b, u, m] = await Promise.all([
+          fetch(`${GATEWAY}/v1/balance`, { headers: hdrs }).then((r) => r.json()),
+          fetch(`${GATEWAY}/v1/my-uploads`, { headers: hdrs }).then((r) => r.json()),
+          fetch(`${GATEWAY}/v1/my-models`, { headers: hdrs }).then((r) => r.json()),
+        ]);
+        if (cancelled) return;
+        if (b?.ok) setBalance(b);
+        else setErr(b?.error || "failed to load balance");
+        setUploads(u?.uploads || []);
+        setModels(m?.models || []);
+      } catch (e: any) {
+        if (!cancelled) setErr(e?.message || "network error");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">
-          Welcome back{user?.firstName ? `, ${user.firstName}` : ""}
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Manage your projects and track usage.
-        </p>
-      </div>
+    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+      <SiteNav />
 
-      {/* Usage meter */}
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-zinc-300">Image Usage</h2>
-            <p className="mt-0.5 text-xs text-zinc-500">
-              {USAGE.imagesUsed} / {USAGE.imagesLimit} images used this period
+      <div className="mx-auto max-w-5xl px-6 py-10">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold">Your account</h1>
+          <p className="mt-1 text-sm text-zinc-400">
+            Balance, trained models, and image uploads — tied to your
+            <code className="mx-1 rounded bg-zinc-900 px-1.5 py-0.5 text-xs">dlf_</code>
+            key.
+          </p>
+        </div>
+
+        {!token && (
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-8 text-center">
+            <div className="text-lg font-semibold text-zinc-200">No agent key in this browser</div>
+            <p className="mt-2 text-sm text-zinc-400">
+              Claim a free agent key (0.10 USDC via x402) to see your dashboard.
             </p>
-          </div>
-          <Link
-            href="/pricing"
-            className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800"
-          >
-            Upgrade Plan
-          </Link>
-        </div>
-        <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-zinc-800">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${
-              usagePercent >= 90 ? "bg-red-500" : "bg-blue-600"
-            }`}
-            style={{ width: `${usagePercent}%` }}
-          />
-        </div>
-        <div className="mt-2 flex justify-between text-xs text-zinc-500">
-          <span>{usagePercent}% used</span>
-          <span className="capitalize">{USAGE.plan} plan</span>
-        </div>
-      </div>
-
-      {/* Projects */}
-      <div>
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Projects</h2>
-          <Link
-            href="/build"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500"
-          >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            New Project
-          </Link>
-        </div>
-
-        {MOCK_PROJECTS.length > 0 ? (
-          <div className="mt-4 space-y-3">
-            {MOCK_PROJECTS.map((project) => (
-              <div
-                key={project.id}
-                className="group flex items-center justify-between rounded-2xl border border-zinc-800 bg-zinc-900/30 p-5 transition hover:border-zinc-700 hover:bg-zinc-900/60"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/10 text-blue-400">
-                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H3.75A2.25 2.25 0 001.5 6.75v12a2.25 2.25 0 002.25 2.25z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="font-medium">{project.name}</h3>
-                    <p className="text-xs text-zinc-500">
-                      {project.images} images &middot; Created {project.createdAt}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <StatusBadge status={project.status} />
-                  <svg
-                    className="h-4 w-4 text-zinc-600 transition group-hover:text-zinc-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={1.5}
-                    stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                  </svg>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-4 rounded-2xl border border-dashed border-zinc-800 p-12 text-center">
-            <p className="text-sm text-zinc-500">No projects yet.</p>
             <Link
-              href="/build"
-              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-blue-500"
+              href="/agents"
+              className="mt-4 inline-block rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold hover:bg-blue-500"
             >
-              Create your first project
+              Claim a key →
             </Link>
           </div>
         )}
+
+        {token && loading && (
+          <div className="text-sm text-zinc-500">Loading your account…</div>
+        )}
+
+        {token && err && (
+          <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
+            {err}
+          </div>
+        )}
+
+        {token && balance && (
+          <>
+            {/* Balance + XP summary */}
+            <div className="grid gap-4 sm:grid-cols-4 mb-8">
+              <StatCard label="Agent" value={balance.display_name || "—"} hint={balance.tier || ""} />
+              <StatCard label="Balance" value={formatUSD(balance.balance_mcents)} hint={`${balance.balance_mcents} mcents`} />
+              <StatCard label="XP" value={String(balance.xp)} hint={`level ${balance.level}`} />
+              <StatCard label="Models" value={String(models.length)} hint={`${uploads.length} uploads`} />
+            </div>
+
+            {/* Models */}
+            <section className="mb-10">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-xl font-semibold">Your trained models</h2>
+                <Link href="/build" className="text-xs text-blue-400 hover:text-blue-300">Train another →</Link>
+              </div>
+              {models.length === 0 ? (
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-6 text-sm text-zinc-500">
+                  No models yet. Drop images on <Link href="/build" className="text-blue-400 hover:text-blue-300">/build</Link> and run training.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {models.map((m) => (
+                    <div
+                      key={m.job_id}
+                      className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 flex items-center gap-4"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-zinc-200 truncate">
+                            {m.display_name || m.job_id.slice(0, 24) + "…"}
+                          </span>
+                          {m.published ? (
+                            <span className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                              PUBLISHED
+                            </span>
+                          ) : (
+                            <span className="shrink-0 rounded-full border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-[10px] font-bold text-zinc-400">
+                              PRIVATE
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-zinc-500">
+                          <span className="font-mono">{m.job_id}</span>
+                          <span>·</span>
+                          <span>{m.uses} uses</span>
+                          <span>·</span>
+                          <span>{formatUSD(m.revenue_mcents)} earned</span>
+                          {m.published_at && (
+                            <>
+                              <span>·</span>
+                              <span>{timeAgo(m.published_at)}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <a
+                        href={m.predict_url}
+                        className="shrink-0 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-medium hover:border-blue-500"
+                      >
+                        Predict URL
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Uploads */}
+            <section>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-xl font-semibold">Your uploads</h2>
+                <Link href="/build" className="text-xs text-blue-400 hover:text-blue-300">Upload more →</Link>
+              </div>
+              {uploads.length === 0 ? (
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-6 text-sm text-zinc-500">
+                  No uploads yet. Drop images on <Link href="/build" className="text-blue-400 hover:text-blue-300">/build</Link> and click "Push to Agent Swarm".
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {uploads.map((u) => (
+                    <a
+                      key={u.object_key}
+                      href={u.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="group rounded-lg border border-zinc-800 bg-zinc-900/40 overflow-hidden hover:border-blue-500"
+                      title={u.original_name}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={u.url}
+                        alt={u.original_name || ""}
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                        className="aspect-square w-full object-cover bg-zinc-950"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                      />
+                      <div className="p-2 text-[10px] text-zinc-500 flex items-center justify-between">
+                        <span className="truncate">{u.original_name || u.object_key.split("/").pop()}</span>
+                        <span className="shrink-0 ml-2">{formatBytes(u.size)}</span>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        )}
       </div>
+    </div>
+  );
+}
+
+function StatCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+      <div className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</div>
+      <div className="mt-1 text-xl font-bold text-zinc-100 truncate">{value}</div>
+      {hint && <div className="mt-0.5 text-[11px] text-zinc-500">{hint}</div>}
     </div>
   );
 }

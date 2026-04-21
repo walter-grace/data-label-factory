@@ -1341,6 +1341,33 @@ async function handleUpload(req: Request, env: Env): Promise<Response> {
   });
 }
 
+// /v1/my-models — list trained + published models owned by the caller.
+// Returns enriched rows with publish state, uses, revenue when available.
+async function handleMyModels(req: Request, env: Env): Promise<Response> {
+  const key = extractBearer(req);
+  if (!key || !key.startsWith("dlf_")) {
+    return error(401, "missing or malformed bearer token");
+  }
+  const jobIds = await listUserModels(env, key);
+  const rows = await Promise.all(jobIds.map(async (jobId) => {
+    const pub = await readPublishedModel(env, jobId);
+    return {
+      job_id: jobId,
+      published: !!pub?.published,
+      display_name: pub?.display_name,
+      description: pub?.description,
+      tags: pub?.tags,
+      uses: pub?.uses ?? 0,
+      revenue_mcents: pub?.revenue_mcents ?? 0,
+      created_at: pub?.created_at,
+      published_at: pub?.published_at,
+      predict_url: `https://dlf-gateway.agentlabel.workers.dev/v1/predict/${jobId}`,
+    };
+  }));
+  rows.sort((a, b) => (b.published_at || b.created_at || 0) - (a.published_at || a.created_at || 0));
+  return json({ ok: true, count: rows.length, models: rows });
+}
+
 // /v1/my-uploads — list this key's R2 objects. Uses R2 native list with a
 // prefix of the key_short so we don't need a separate index.
 async function handleMyUploads(req: Request, env: Env): Promise<Response> {
@@ -1688,6 +1715,35 @@ async function writeModelOwner(env: Env, jobId: string, key: string): Promise<vo
   const existing = await env.KEYS.get(`model_owner:${jobId}`);
   if (existing) return;
   await env.KEYS.put(`model_owner:${jobId}`, key);
+  // Reverse index so /v1/my-models can list a user's models cheaply via
+  // a prefix scan instead of walking every model_owner:* key.
+  const keyShort = key.slice(0, 10);
+  await env.KEYS.put(`user_model:${keyShort}:${jobId}`, String(Date.now()));
+}
+
+// Lists trained jobs owned by the caller. Uses the forward reverse-index
+// written by writeModelOwner; older models (pre-index) are backfilled
+// lazily by scanning model_owner:* once per list call when the prefix is
+// empty for this key.
+async function listUserModels(env: Env, key: string): Promise<string[]> {
+  const keyShort = key.slice(0, 10);
+  const prefix = `user_model:${keyShort}:`;
+  const list = await env.KEYS.list({ prefix, limit: 200 });
+  let jobIds = list.keys.map((k) => k.name.slice(prefix.length));
+  if (jobIds.length === 0) {
+    // Lazy backfill: scan up to 500 `model_owner:*` entries, find this
+    // user's, and populate the index. One-time cost per user.
+    const scan = await env.KEYS.list({ prefix: "model_owner:", limit: 500 });
+    for (const k of scan.keys) {
+      const ownerKey = await env.KEYS.get(k.name);
+      if (ownerKey === key) {
+        const jobId = k.name.slice("model_owner:".length);
+        jobIds.push(jobId);
+        try { await env.KEYS.put(`user_model:${keyShort}:${jobId}`, String(Date.now())); } catch {}
+      }
+    }
+  }
+  return jobIds;
 }
 
 async function getCachedWeights(env: Env, jobId: string): Promise<string | null> {
@@ -3875,6 +3931,7 @@ export default {
       if (p === "/v1/label" && req.method === "POST") return handleLabel(req, env);
       if (p === "/v1/upload" && req.method === "POST") return handleUpload(req, env);
       if (p === "/v1/my-uploads" && req.method === "GET") return handleMyUploads(req, env);
+      if (p === "/v1/my-models" && req.method === "GET") return handleMyModels(req, env);
 
       if (p === "/v1/train-yolo/start" && req.method === "POST") return handleTrainStart(req, env);
 
