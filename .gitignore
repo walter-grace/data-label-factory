@@ -18,6 +18,8 @@ env/
 # Node / Next.js (web UI)
 web/node_modules/
 web/.next/
+web/.open-next/
+web/.wrangler/
 web/.turbo/
 web/out/
 web/*.log

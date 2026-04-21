@@ -1,0 +1,20 @@
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "dlf-web",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-04-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": ".open-next/assets"
+  },
+  "vars": {
+    // Gateway for all paid API calls from server components + route handlers.
+    "DLF_GATEWAY_BASE_URL": "https://dlf-gateway.agentlabel.workers.dev",
+    // Replaces VERCEL_URL in code; set per environment.
+    "PUBLIC_ORIGIN": "https://dlf-web.agentlabel.workers.dev"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
