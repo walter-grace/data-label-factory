@@ -37,6 +37,14 @@ id = "02983ae980df4abaa4a4c9ad929f8080"
 binding = "UPLOADS"
 bucket_name = "dlf-uploads"
 
+# Daily jackpot payout at 00:00 UTC. The scheduled() handler in
+# index.ts calls JackpotDO /payout directly via its DO binding (no
+# HTTP surface, no secret needed). The DO enforces a cooldown so an
+# admin-triggered payout earlier in the day causes this run to
+# short-circuit.
+[triggers]
+crons = ["0 0 * * *"]
+
 # Durable Object for leaderboard + activity feed (serializes concurrent writes).
 [[durable_objects.bindings]]
 name = "LEADERBOARD"

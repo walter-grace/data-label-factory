@@ -2184,9 +2184,11 @@ const JACKPOT_SUB_TENURE_MS = 7 * 86400_000;
 // Carve 10% of pool into the subscriber sub-pool before the main 50/30/20.
 const JACKPOT_SUB_POOL_FRACTION = 0.10;
 const JACKPOT_SUB_POOL_SPLITS = [0.6, 0.4];
-// Admin-payout cooldown: refuse payouts closer than this to the prior one.
+// Payout cooldown: refuse payouts closer than this to the prior one.
 // Blunts admin-timing attacks and forces predictable payout windows.
-const JACKPOT_PAYOUT_COOLDOWN_MS = 7 * 86400_000;
+// Set just under 24h so the daily cron (0 0 * * *) always clears the
+// gate even with a few minutes of fire-time jitter.
+const JACKPOT_PAYOUT_COOLDOWN_MS = 23 * 3600_000;
 
 const USDC_BASE_MAINNET = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const FACILITATOR_FREE = "https://x402.org/facilitator";
@@ -3993,5 +3995,29 @@ export default {
     } catch (e: any) {
       return error(500, e?.message || "internal error");
     }
+  },
+
+  // Scheduled: daily jackpot payout at 00:00 UTC. Invokes the JackpotDO
+  // directly via its DO binding — no HTTP surface, no network, no admin
+  // token in a URL. The DO's /payout handler enforces its own cooldown
+  // gate (JACKPOT_PAYOUT_COOLDOWN_MS) so a manual admin trigger earlier
+  // in the day will cause this scheduled run to short-circuit, not
+  // double-pay.
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil((async () => {
+      try {
+        const id = env.JACKPOT.idFromName("global");
+        const resp = await env.JACKPOT.get(id).fetch("https://jackpot/payout", {
+          method: "POST",
+        });
+        const body: any = await resp.json().catch(() => ({}));
+        const summary = body?.ok
+          ? `paid=${body.distributed || 0}mc winners=${(body.winners || []).length}`
+          : `skip: ${body?.error || `status ${resp.status}`}`;
+        console.log(`[scheduled ${event.cron}] jackpot payout: ${summary}`);
+      } catch (e: any) {
+        console.log(`[scheduled ${event.cron}] jackpot payout threw: ${e?.message || e}`);
+      }
+    })());
   },
 };
