@@ -2186,9 +2186,10 @@ const JACKPOT_SUB_POOL_FRACTION = 0.10;
 const JACKPOT_SUB_POOL_SPLITS = [0.6, 0.4];
 // Payout cooldown: refuse payouts closer than this to the prior one.
 // Blunts admin-timing attacks and forces predictable payout windows.
-// Set just under 24h so the daily cron (0 0 * * *) always clears the
-// gate even with a few minutes of fire-time jitter.
-const JACKPOT_PAYOUT_COOLDOWN_MS = 23 * 3600_000;
+// Conservative 7d while payouts are manual-only. If we switch on the
+// daily scheduled() trigger in wrangler.toml, drop this to 23h so the
+// cron clears the gate each day.
+const JACKPOT_PAYOUT_COOLDOWN_MS = 7 * 86400_000;
 
 const USDC_BASE_MAINNET = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const FACILITATOR_FREE = "https://x402.org/facilitator";
@@ -3997,12 +3998,17 @@ export default {
     }
   },
 
-  // Scheduled: daily jackpot payout at 00:00 UTC. Invokes the JackpotDO
-  // directly via its DO binding — no HTTP surface, no network, no admin
-  // token in a URL. The DO's /payout handler enforces its own cooldown
-  // gate (JACKPOT_PAYOUT_COOLDOWN_MS) so a manual admin trigger earlier
-  // in the day will cause this scheduled run to short-circuit, not
-  // double-pay.
+  // Scheduled: jackpot payout handler. Currently DORMANT — no cron
+  // trigger is wired in wrangler.toml, so this never fires in prod.
+  // Kept here so enabling the daily payout later is a one-line
+  // wrangler.toml change (uncomment the `[triggers]` block) plus
+  // dropping JACKPOT_PAYOUT_COOLDOWN_MS to 23h.
+  //
+  // When enabled: invokes the JackpotDO directly via its DO binding —
+  // no HTTP surface, no network, no admin token in a URL. The DO's
+  // /payout handler enforces its own cooldown gate so a manual admin
+  // trigger earlier in the window causes this scheduled run to
+  // short-circuit, not double-pay.
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil((async () => {
       try {
