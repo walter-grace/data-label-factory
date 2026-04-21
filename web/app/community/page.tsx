@@ -39,6 +39,7 @@ type FeedItem = {
   created_at: number;
   reactions?: { fire: number; check: number; eyes: number };
   comments_count?: number;
+  metadata?: Record<string, any>;
   link?: string;
 };
 
@@ -108,6 +109,9 @@ const SOURCE_BADGE: Record<string, { label: string; cls: string }> = {
 
 function FeedRow({ item }: { item: FeedItem }) {
   const badge = SOURCE_BADGE[item.source] || SOURCE_BADGE.community;
+  const imgs: string[] = Array.isArray(item.metadata?.image_urls)
+    ? item.metadata!.image_urls.slice(0, 3)
+    : [];
   const row = (
     <div className="px-4 py-3 hover:bg-zinc-800/40 transition-colors flex items-start gap-3">
       <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ${badge.cls}`}>
@@ -132,6 +136,22 @@ function FeedRow({ item }: { item: FeedItem }) {
             </>
           )}
         </div>
+        {imgs.length > 0 && (
+          <div className="mt-2 flex gap-1.5">
+            {imgs.map((u, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={i}
+                src={u}
+                alt=""
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                className="h-16 w-16 rounded border border-zinc-800 object-cover bg-zinc-950"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

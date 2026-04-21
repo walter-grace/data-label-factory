@@ -55,6 +55,7 @@ function timeAgo(ts: number): string {
 
 const TYPE_BADGES: Record<string, { label: string; color: string }> = {
   job: { label: "LABELING JOB", color: "bg-green-500/20 text-green-400 border-green-500/30" },
+  showcase: { label: "AGENT SHOWCASE", color: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30" },
   achievement: { label: "ACHIEVEMENT", color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
   milestone: { label: "MILESTONE", color: "bg-purple-500/20 text-purple-400 border-purple-500/30" },
   discussion: { label: "DISCUSSION", color: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
@@ -142,6 +143,24 @@ function PostCard({
       <div className="text-sm text-zinc-300 whitespace-pre-wrap mb-4">
         {post.body}
       </div>
+
+      {/* Image gallery — from agent-farm showcase posts or buyer-submitted jobs */}
+      {Array.isArray(post.metadata?.image_urls) && post.metadata.image_urls.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+          {post.metadata.image_urls.slice(0, 6).map((u: string, i: number) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={i}
+              src={u}
+              alt=""
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              className="aspect-square w-full rounded-lg object-cover border border-zinc-800 bg-zinc-950"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Job metadata */}
       {post.post_type === "job" && post.metadata?.image_count && (

@@ -12,6 +12,10 @@ export interface Env {
   SPECIALIST_KEY: string;
   EXPLORER_KEY: string;
   MIN_BALANCE_MCENTS: string;
+  // Vercel host for the /api/community/auto-post sink. Optional — if
+  // unset the farm just skips the showcase post and only produces
+  // gateway activity.
+  VERCEL_BASE_URL?: string;
 }
 
 const QUERIES = [
@@ -83,17 +87,44 @@ async function runTick(env: Env): Promise<object> {
     body: JSON.stringify({ path: img.url, queries: query, backend: "openrouter" }),
   });
   const lData: any = await lResp.json().catch(() => ({}));
+  const detections = lData.upstream?.n_detections;
+
+  // Post a community showcase so the /community page gets fresh pictures.
+  // Best-effort — gateway-side activity is already recorded above; this is
+  // only to surface thumbnails in the Vercel UI.
+  let showcased: any = null;
+  if (env.VERCEL_BASE_URL && lResp.ok) {
+    try {
+      const showcaseUrls = images.slice(0, 3).map((i) => i.url);
+      const r = await fetch(`${env.VERCEL_BASE_URL.replace(/\/$/, "")}/api/community/auto-post`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query,
+          agent_id: name,
+          image_urls: showcaseUrls,
+          image_count: images.length,
+          detections,
+          post_type: "showcase",
+        }),
+      });
+      showcased = { status: r.status };
+    } catch (e: any) {
+      showcased = { error: String(e).slice(0, 120) };
+    }
+  }
 
   return {
     ok: lResp.ok,
     agent: name,
     query,
     elapsed_ms: Date.now() - started,
-    detections: lData.upstream?.n_detections,
+    detections,
     balance_mcents: lData.balance_mcents,
     xp: lData.xp,
     level: lData.level,
     new_badges: lData.new_badges,
+    showcased,
   };
 }
 

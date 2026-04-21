@@ -16,6 +16,7 @@ compatibility_date = "2026-04-18"
 [vars]
 GATEWAY_URL = "https://dlf-gateway.agentlabel.workers.dev"
 MIN_BALANCE_MCENTS = "1000"
+VERCEL_BASE_URL = "https://data-label-factory.vercel.app"
 
 # Service binding required: same-account Worker-to-Worker via public fetch
 # triggers CF error 1042 ("sub-worker redirect"). Binding calls the gateway
