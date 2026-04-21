@@ -39,9 +39,11 @@ export interface Env {
   JACKPOT: DurableObjectNamespace;
   USER_STATE: DurableObjectNamespace;
   JOBS: DurableObjectNamespace;
+  UPLOADS: R2Bucket;
   CF_ACCOUNT_ID: string;
   CF_API_TOKEN: string;
   DLF_VERCEL_BASE_URL: string;
+  UPLOADS_PUBLIC_BASE: string;
   ADMIN_KEY: string;
   // Emergency brake: when set to "1", every paid endpoint returns 503 with
   // a "temporarily unavailable" payload. Free reads (health, pricing,
@@ -1258,6 +1260,121 @@ async function handleCrawl(req: Request, env: Env): Promise<Response> {
     level: level(auth.record.xp),
     cloudflare: data,
   }, { status: cf.ok ? 200 : cf.status });
+}
+
+// /v1/upload — authenticated image upload to R2. Free (no mcent charge) —
+// we care about who's uploading (scoped per-key) but the storage itself is
+// cheap enough to eat for now. Returns a public r2.dev URL that can be
+// handed off to /v1/label, /v1/predict, or the jobs marketplace.
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB
+const ALLOWED_UPLOAD_TYPES = new Set([
+  "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif",
+]);
+
+async function handleUpload(req: Request, env: Env): Promise<Response> {
+  const key = extractBearer(req);
+  if (!key || !key.startsWith("dlf_")) {
+    return error(401, "missing or malformed bearer token");
+  }
+  const rec = await readKey(env, key);
+  if (!rec) return error(401, "unknown api key");
+
+  const ct = req.headers.get("content-type") || "";
+  if (!ct.toLowerCase().startsWith("multipart/form-data")) {
+    return error(400, 'expected multipart/form-data with "image" field');
+  }
+
+  let form: FormData;
+  try { form = await req.formData(); }
+  catch { return error(400, "malformed multipart body"); }
+
+  const rawFile = form.get("image");
+  // In Workers, form.get returns `FormDataEntryValue | null` — narrow on shape
+  // rather than `instanceof File` (File isn't in the Workers types lib).
+  const file = rawFile && typeof rawFile === "object" && "arrayBuffer" in rawFile
+    ? (rawFile as Blob & { name?: string; type: string; size: number; stream: () => ReadableStream })
+    : null;
+  if (!file) {
+    return error(400, 'missing required "image" field (File)');
+  }
+  if (file.size === 0) return error(400, "empty image");
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return error(413, `image exceeds ${MAX_UPLOAD_BYTES} byte cap`, {
+      got_bytes: file.size,
+    });
+  }
+  const fileType = (file.type || "").toLowerCase();
+  if (!ALLOWED_UPLOAD_TYPES.has(fileType)) {
+    return error(415, `unsupported content-type ${fileType || "<none>"}`, {
+      allowed: [...ALLOWED_UPLOAD_TYPES],
+    });
+  }
+
+  // Each key gets its own prefix so /v1/my-uploads can list just their files
+  // without a separate index. key_short is the first 10 chars of the token —
+  // random enough to avoid collisions, never reversible to the full key.
+  const keyShort = key.slice(0, 10);
+  const ext = fileType.split("/")[1] || "bin";
+  const uuid = crypto.randomUUID();
+  const objectKey = `${keyShort}/${uuid}.${ext}`;
+
+  const nameField = form.get("name");
+  const originalName = (typeof nameField === "string" ? nameField : file.name || "image").slice(0, 200);
+
+  await env.UPLOADS.put(objectKey, file.stream(), {
+    httpMetadata: { contentType: fileType },
+    customMetadata: {
+      dlf_key_short: keyShort,
+      original_name: originalName,
+      uploaded_at: String(Date.now()),
+    },
+  });
+
+  const url = `${env.UPLOADS_PUBLIC_BASE.replace(/\/$/, "")}/${objectKey}`;
+  return json({
+    ok: true,
+    url,
+    object_key: objectKey,
+    size: file.size,
+    content_type: fileType,
+    display_name: rec.display_name,
+  });
+}
+
+// /v1/my-uploads — list this key's R2 objects. Uses R2 native list with a
+// prefix of the key_short so we don't need a separate index.
+async function handleMyUploads(req: Request, env: Env): Promise<Response> {
+  const key = extractBearer(req);
+  if (!key || !key.startsWith("dlf_")) {
+    return error(401, "missing or malformed bearer token");
+  }
+  const keyShort = key.slice(0, 10);
+  // R2 omits custom/http metadata from list() by default — pass `include`
+  // so /v1/my-uploads can surface original_name + content_type without a
+  // follow-up HEAD per object. Cast because the current @cloudflare/workers-
+  // types build doesn't yet type the `include` field.
+  const listed = await env.UPLOADS.list({
+    prefix: `${keyShort}/`,
+    limit: 200,
+    include: ["customMetadata", "httpMetadata"],
+  } as any);
+  const base = env.UPLOADS_PUBLIC_BASE.replace(/\/$/, "");
+  const items = listed.objects.map((o) => ({
+    url: `${base}/${o.key}`,
+    object_key: o.key,
+    size: o.size,
+    content_type: o.httpMetadata?.contentType,
+    uploaded_at: Number(o.customMetadata?.uploaded_at) || o.uploaded.getTime(),
+    original_name: o.customMetadata?.original_name,
+  }));
+  // newest first
+  items.sort((a, b) => b.uploaded_at - a.uploaded_at);
+  return json({
+    ok: true,
+    count: items.length,
+    uploads: items,
+    truncated: listed.truncated,
+  });
 }
 
 async function handleGather(req: Request, env: Env): Promise<Response> {
@@ -3756,6 +3873,8 @@ export default {
       if (p === "/v1/crawl" && req.method === "POST") return handleCrawl(req, env);
       if (p === "/v1/gather" && req.method === "POST") return handleGather(req, env);
       if (p === "/v1/label" && req.method === "POST") return handleLabel(req, env);
+      if (p === "/v1/upload" && req.method === "POST") return handleUpload(req, env);
+      if (p === "/v1/my-uploads" && req.method === "GET") return handleMyUploads(req, env);
 
       if (p === "/v1/train-yolo/start" && req.method === "POST") return handleTrainStart(req, env);
 

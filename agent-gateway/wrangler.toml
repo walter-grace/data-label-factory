@@ -21,10 +21,21 @@ compatibility_date = "2026-04-17"
 [vars]
 # Defaults; override via `wrangler secret put` for production values
 DLF_VERCEL_BASE_URL = "https://data-label-factory.vercel.app"
+# Public base for /v1/upload responses — points at the R2 bucket's managed
+# dev URL. If we ever move to a custom r2 domain, swap this without
+# rewriting stored keys.
+UPLOADS_PUBLIC_BASE = "https://pub-151beee55fe645ef9a9d500191813394.r2.dev"
 
 [[kv_namespaces]]
 binding = "KEYS"
 id = "02983ae980df4abaa4a4c9ad929f8080"
+
+# R2 bucket for /v1/upload. Stores agent-submitted images under
+# {key_short}/{uuid}.{ext}. Managed public URL is set via UPLOADS_PUBLIC_BASE
+# so callers never hit the Worker just to fetch an image.
+[[r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "dlf-uploads"
 
 # Durable Object for leaderboard + activity feed (serializes concurrent writes).
 [[durable_objects.bindings]]

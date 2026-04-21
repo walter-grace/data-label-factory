@@ -70,9 +70,12 @@ function guessCommunitySlug(query: string): string {
   return "wildlife";
 }
 
+const GATEWAY_BASE = "https://dlf-gateway.agentlabel.workers.dev";
+
 function BuildPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [pushingToSwarm, setPushingToSwarm] = useState(false);
   const [step, setStep] = useState<Step>("input");
   const [target, setTarget] = useState(searchParams.get("target") || "");
   const [images, setImages] = useState<ImageItem[]>([]);
@@ -682,25 +685,88 @@ function BuildPageInner() {
                 </span>
                 <div className="flex items-center gap-2">
                   <Button
-                    onClick={() => {
+                    onClick={async () => {
                       if (!target.trim()) {
                         toast.error("Enter what you want to detect");
                         return;
                       }
+                      // Read the dlf_ key the user claimed on /agents. Without
+                      // it we can't upload dropped files to R2, so we either
+                      // route them to claim a key, or push the target through
+                      // alone and let them paste URLs on post-job.
+                      let token = "";
+                      try {
+                        const saved = localStorage.getItem("dlf_key");
+                        if (saved) {
+                          const parsed = JSON.parse(saved);
+                          if (parsed?.key?.startsWith("dlf_")) token = parsed.key;
+                        }
+                      } catch {}
+
                       const slug = guessCommunitySlug(target);
-                      const urls = images
+                      const params = new URLSearchParams({ query: target.trim() });
+
+                      // Start with URLs we already have (imported via URL).
+                      const urls: string[] = images
                         .map((i) => i.source_url)
                         .filter((u): u is string => !!u);
-                      const params = new URLSearchParams({ query: target.trim() });
+
+                      const filesToUpload = images.filter((i) => !i.source_url);
+
+                      if (filesToUpload.length > 0 && !token) {
+                        toast.error(
+                          "Claim a free agent key to upload images. Redirecting…",
+                          { duration: 3500 },
+                        );
+                        setTimeout(() => router.push(`/agents?next=/build`), 1000);
+                        return;
+                      }
+
+                      if (filesToUpload.length > 0) {
+                        setPushingToSwarm(true);
+                        const toastId = toast.loading(
+                          `Uploading ${filesToUpload.length} image${filesToUpload.length === 1 ? "" : "s"}…`,
+                        );
+                        try {
+                          for (let i = 0; i < filesToUpload.length; i++) {
+                            const item = filesToUpload[i];
+                            const fd = new FormData();
+                            fd.append("image", item.file);
+                            fd.append("name", item.name);
+                            const r = await fetch(`${GATEWAY_BASE}/v1/upload`, {
+                              method: "POST",
+                              headers: { Authorization: `Bearer ${token}` },
+                              body: fd,
+                            });
+                            const d = await r.json();
+                            if (!r.ok || !d?.ok || !d?.url) {
+                              throw new Error(d?.error || `upload failed (${r.status})`);
+                            }
+                            urls.push(d.url);
+                            toast.loading(
+                              `Uploaded ${i + 1}/${filesToUpload.length}…`,
+                              { id: toastId },
+                            );
+                          }
+                          toast.success(`Uploaded ${filesToUpload.length} image${filesToUpload.length === 1 ? "" : "s"}`, { id: toastId });
+                        } catch (e: any) {
+                          toast.error(`Upload failed: ${e.message}`, { id: toastId });
+                          setPushingToSwarm(false);
+                          return;
+                        } finally {
+                          setPushingToSwarm(false);
+                        }
+                      }
+
                       if (urls.length > 0) params.set("urls", urls.join(","));
                       router.push(`/community/${slug}/post-job?${params.toString()}`);
                     }}
-                    disabled={!target.trim()}
+                    disabled={!target.trim() || pushingToSwarm}
                     variant="outline"
                     className="h-11 rounded-xl border-zinc-700 bg-zinc-900 px-5 text-sm font-semibold hover:border-blue-500 hover:bg-zinc-800"
-                    title="Post this target + any URL-imported images as a paid job for agents to label"
+                    title="Upload dropped images to R2 + post target as a paid job for agents to label"
                   >
-                    Push to Agent Swarm
+                    {pushingToSwarm ? "Uploading…" : "Push to Agent Swarm"}
                   </Button>
                   <Button
                     onClick={runPipeline}
