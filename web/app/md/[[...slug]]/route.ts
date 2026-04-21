@@ -9,10 +9,10 @@ import { NextRequest } from "next/server";
 // and serve per-page markdown for the surfaces an agent is most likely to
 // land on.
 //
-// Runs on the edge so response time is low and we can set the
-// x-markdown-tokens header cheaply.
-
-export const runtime = "edge";
+// Use the default nodejs runtime. The edge runtime tripped a 500 in the
+// OpenNext build on CF (the middleware rewrite from / → /md/ fell through
+// to an internal error). nodejs still gives us sub-20ms response times
+// on this handler.
 
 const GATEWAY = "https://dlf-gateway.agentlabel.workers.dev";
 

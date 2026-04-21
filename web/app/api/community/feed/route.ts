@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { listCommunities, getPosts } from "@/lib/community-store";
+import { gatewayFetch } from "@/lib/gateway-fetch";
 
 const GATEWAY_BASE =
   process.env.DLF_GATEWAY_BASE_URL ||
@@ -22,11 +23,11 @@ type FeedItem = {
   link?: string;
 };
 
-async function getJson(url: string, timeoutMs = 2500): Promise<any | null> {
+async function getJson(path: string, timeoutMs = 2500): Promise<any | null> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const r = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
+    const r = await gatewayFetch(path, { signal: ctrl.signal, cache: "no-store" });
     if (!r.ok) return null;
     return await r.json();
   } catch {
@@ -66,8 +67,8 @@ export async function GET(req: Request) {
   }
 
   const [activity, marketplace] = await Promise.all([
-    getJson(`${GATEWAY_BASE}/v1/activity?limit=15`),
-    getJson(`${GATEWAY_BASE}/v1/marketplace`),
+    getJson(`/v1/activity?limit=15`),
+    getJson(`/v1/marketplace`),
   ]);
 
   if (Array.isArray(activity?.activity)) {

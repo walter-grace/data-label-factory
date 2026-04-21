@@ -9,11 +9,19 @@
     "directory": ".open-next/assets"
   },
   "vars": {
-    // Gateway for all paid API calls from server components + route handlers.
+    // Gateway for paid API calls. Same-account Worker-to-Worker via the
+    // public URL triggers CF error 1042 — server-side routes should use
+    // the GATEWAY service binding below. Client-side JS in the browser
+    // hits the public URL normally.
     "DLF_GATEWAY_BASE_URL": "https://dlf-gateway.agentlabel.workers.dev",
-    // Replaces VERCEL_URL in code; set per environment.
     "PUBLIC_ORIGIN": "https://dlf-web.agentlabel.workers.dev"
   },
+  "services": [
+    {
+      "binding": "GATEWAY",
+      "service": "dlf-gateway"
+    }
+  ],
   "observability": {
     "enabled": true
   }
